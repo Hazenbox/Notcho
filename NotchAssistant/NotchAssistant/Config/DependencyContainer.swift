@@ -1,10 +1,5 @@
 import Foundation
 
-protocol Transcribing: Sendable {
-    func transcribe(_ audioChunk: AudioChunk) async throws -> TranscriptChunk
-    func downloadModelIfNeeded(progress: @escaping @Sendable (Double) -> Void) async throws
-}
-
 protocol SuggestionGenerating: Sendable {
     func generate(context: MeetingContext) async throws -> SuggestionResult
 }
@@ -32,7 +27,7 @@ final class DependencyContainer {
     }
     
     func makeTranscriber() -> any Transcribing {
-        fatalError("Transcriber not yet implemented")
+        return WhisperKitTranscriber()
     }
     
     func makeSuggestionGenerator() -> any SuggestionGenerating {
