@@ -9,13 +9,6 @@ protocol MeetingDetecting: Sendable {
     var isMeetingActive: Bool { get async }
 }
 
-protocol ContextAnalyzing: Sendable {
-    func addTranscript(_ chunk: TranscriptChunk) async
-    func buildContext() async -> MeetingContext
-    func detectTopic() async -> String?
-    func reset() async
-}
-
 @MainActor
 final class DependencyContainer {
     static let shared = DependencyContainer()
@@ -39,6 +32,6 @@ final class DependencyContainer {
     }
     
     func makeContextAnalyzer() -> any ContextAnalyzing {
-        fatalError("Context analyzer not yet implemented")
+        return ContextEngine()
     }
 }
