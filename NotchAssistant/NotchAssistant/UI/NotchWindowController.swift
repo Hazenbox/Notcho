@@ -103,35 +103,37 @@ final class NotchWindowController {
         guard let screen = NSScreen.main else { return .zero }
         let screenFrame = screen.frame
         
-        let width: CGFloat = 200
-        let height: CGFloat = 32
+        let width: CGFloat = 700
+        let height: CGFloat = 140
+        
+        let x = screenFrame.midX - width / 2
+        let y: CGFloat
         
         if hasNotch {
             let safeTop = screen.safeAreaInsets.top
-            let x = screenFrame.midX - width / 2
-            let y = screenFrame.maxY - safeTop - height + 4
-            return NSRect(x: x, y: y, width: width, height: height)
+            y = screenFrame.maxY - safeTop - height
         } else {
-            let x = screenFrame.midX - width / 2
-            let y = screenFrame.maxY - 60
-            return NSRect(x: x, y: y, width: width, height: height)
+            y = screenFrame.maxY - 40 - height
         }
+        
+        return NSRect(x: x, y: y, width: width, height: height)
     }
     
     private func expandedFrame() -> NSRect {
         guard let screen = NSScreen.main else { return .zero }
         let screenFrame = screen.frame
         
-        let width: CGFloat = 340
+        let width: CGFloat = 700
         let height: CGFloat = 460
         
         let x = screenFrame.midX - width / 2
         let y: CGFloat
         
         if hasNotch {
-            y = screenFrame.maxY - screen.safeAreaInsets.top - height + 4
+            let safeTop = screen.safeAreaInsets.top
+            y = screenFrame.maxY - safeTop - height
         } else {
-            y = screenFrame.maxY - 60 - height + 32
+            y = screenFrame.maxY - 40 - height
         }
         
         return NSRect(x: x, y: y, width: width, height: height)

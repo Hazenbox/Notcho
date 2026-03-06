@@ -5,7 +5,7 @@ struct NotchOverlayView: View {
     
     var body: some View {
         ZStack {
-            VisualEffectView(material: .sidebar, blendingMode: .behindWindow)
+            Color.black
             
             if viewModel.showOnboarding {
                 OnboardingView(viewModel: viewModel)
@@ -17,8 +17,8 @@ struct NotchOverlayView: View {
                 CollapsedContentView(viewModel: viewModel)
             }
         }
-        .clipShape(RoundedRectangle(cornerRadius: viewModel.isExpanded ? 16 : 20, style: .continuous))
-        .shadow(color: .black.opacity(0.3), radius: 20, x: 0, y: 10)
+        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .shadow(color: .black.opacity(0.4), radius: 15, x: 0, y: 8)
         .onAppear {
             viewModel.setup()
         }
@@ -29,25 +29,27 @@ struct ModelLoadingView: View {
     let progress: Double
     
     var body: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: 14) {
             ProgressView()
-                .scaleEffect(0.8)
+                .scaleEffect(0.9)
+                .tint(.white)
             
             Text("Loading Speech Model")
-                .font(.system(.caption, weight: .medium))
-                .foregroundStyle(.primary)
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(.white)
             
             if progress > 0 && progress < 1 {
                 ProgressView(value: progress)
                     .progressViewStyle(.linear)
-                    .frame(width: 120)
+                    .tint(.white)
+                    .frame(width: 140)
                 
                 Text("\(Int(progress * 100))%")
-                    .font(.system(.caption2, design: .monospaced))
-                    .foregroundStyle(.secondary)
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundStyle(.white.opacity(0.6))
             }
         }
-        .padding(20)
+        .padding(24)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(String(localized: "Loading speech model"))
         .accessibilityValue(progress > 0 ? "\(Int(progress * 100)) percent" : "Starting")
@@ -57,16 +59,63 @@ struct ModelLoadingView: View {
 struct CollapsedContentView: View {
     @Bindable var viewModel: NotchViewModel
     
+    private let notchWidth: CGFloat = 180
+    
     var body: some View {
-        HStack(spacing: 8) {
-            StatusIndicatorView(state: viewModel.state)
+        HStack(spacing: 0) {
+            // Left section - Status card
+            HStack(spacing: 10) {
+                StatusIndicatorView(state: viewModel.state)
+                
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Meeting Assistant")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(.white)
+                    
+                    Text(statusText)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.6))
+                }
+                
+                Spacer()
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+            .frame(maxWidth: .infinity)
+            .background(Color(white: 0.11))
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .padding(.leading, 16)
             
-            Text(statusText)
-                .font(.system(.caption, weight: .medium))
-                .foregroundStyle(.secondary)
+            // Center spacer for notch area
+            Spacer()
+                .frame(width: notchWidth)
+            
+            // Right section - Settings/Action card
+            HStack(spacing: 12) {
+                Spacer()
+                
+                Button(action: { viewModel.onExpandToggle?() }) {
+                    Image(systemName: "waveform")
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundStyle(.white)
+                }
+                .buttonStyle(.plain)
+                
+                Button(action: {}) {
+                    Image(systemName: "gearshape")
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.7))
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+            .frame(maxWidth: .infinity)
+            .background(Color(white: 0.11))
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .padding(.trailing, 16)
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 8)
+        .padding(.vertical, 16)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(String(localized: "Notch Assistant"))
         .accessibilityValue(statusText)
@@ -88,17 +137,79 @@ struct ExpandedContentView: View {
     @Bindable var viewModel: NotchViewModel
     @FocusState private var focusedElement: FocusableElement?
     
+    private let notchWidth: CGFloat = 180
+    
     enum FocusableElement: Hashable {
         case transcript, suggestion, question, insight, regenerate, copyAll, close
     }
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HeaderView(viewModel: viewModel)
+        VStack(spacing: 0) {
+            // Top row - same as collapsed layout
+            HStack(spacing: 0) {
+                // Left section - Status card
+                HStack(spacing: 10) {
+                    StatusIndicatorView(state: viewModel.state)
+                    
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Meeting Assistant")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(.white)
+                        
+                        Text(statusText)
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(.white.opacity(0.6))
+                    }
+                    
+                    Spacer()
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 12)
+                .frame(maxWidth: .infinity)
+                .background(Color(white: 0.11))
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .padding(.leading, 16)
+                
+                // Center spacer for notch area
+                Spacer()
+                    .frame(width: notchWidth)
+                
+                // Right section - Settings/Close
+                HStack(spacing: 12) {
+                    Spacer()
+                    
+                    Button(action: {}) {
+                        Image(systemName: "gearshape")
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundStyle(.white.opacity(0.7))
+                    }
+                    .buttonStyle(.plain)
+                    
+                    Button(action: { viewModel.onExpandToggle?() }) {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(.white.opacity(0.7))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(String(localized: "Close"))
+                    .accessibilityIdentifier(AccessibilityIdentifiers.closeButton)
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 12)
+                .frame(maxWidth: .infinity)
+                .background(Color(white: 0.11))
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .padding(.trailing, 16)
+            }
+            .padding(.vertical, 16)
             
-            Divider()
+            // Divider
+            Rectangle()
+                .fill(Color.white.opacity(0.1))
+                .frame(height: 1)
                 .padding(.horizontal, 16)
             
+            // Error banner if needed
             if case .error(let message) = viewModel.state {
                 ErrorBannerView(message: message, onRetry: {
                     viewModel.clearError()
@@ -108,8 +219,9 @@ struct ExpandedContentView: View {
                 })
             }
             
+            // Content area
             ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: 12) {
                     if viewModel.currentTranscript.isEmpty {
                         EmptyTranscriptView(isRunning: viewModel.isRunning)
                     } else {
@@ -150,9 +262,13 @@ struct ExpandedContentView: View {
                 .padding(16)
             }
             
-            Divider()
+            // Divider
+            Rectangle()
+                .fill(Color.white.opacity(0.1))
+                .frame(height: 1)
                 .padding(.horizontal, 16)
             
+            // Footer
             FooterView(viewModel: viewModel)
         }
         .onKeyPress(.escape) {
@@ -162,6 +278,15 @@ struct ExpandedContentView: View {
         .onKeyPress(.tab) {
             advanceFocus()
             return .handled
+        }
+    }
+    
+    private var statusText: String {
+        switch viewModel.state {
+        case .idle: return String(localized: "Idle")
+        case .listening: return String(localized: "Listening")
+        case .processing: return String(localized: "Processing")
+        case .error: return String(localized: "Error")
         }
     }
     
@@ -183,24 +308,32 @@ struct ErrorBannerView: View {
     let onRetry: () -> Void
     
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 10) {
             Image(systemName: "exclamationmark.triangle.fill")
                 .foregroundStyle(.red)
+                .font(.system(size: 14))
             
             Text(message)
-                .font(.caption)
-                .foregroundStyle(.primary)
+                .font(.system(size: 12))
+                .foregroundStyle(.white)
                 .lineLimit(2)
             
             Spacer()
             
-            Button("Retry", action: onRetry)
-                .buttonStyle(.bordered)
-                .controlSize(.small)
+            Button(action: onRetry) {
+                Text("Retry")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(Color.red.opacity(0.3))
+                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            }
+            .buttonStyle(.plain)
         }
-        .padding(12)
-        .background(Color.red.opacity(0.1))
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .padding(14)
+        .background(Color.red.opacity(0.15))
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .padding(.horizontal, 16)
         .padding(.top, 8)
         .accessibilityElement(children: .combine)
@@ -213,23 +346,25 @@ struct EmptyTranscriptView: View {
     let isRunning: Bool
     
     var body: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 10) {
             Image(systemName: isRunning ? "waveform" : "mic.slash")
-                .font(.system(size: 24))
-                .foregroundStyle(.secondary)
+                .font(.system(size: 28))
+                .foregroundStyle(.white.opacity(0.4))
             
             Text(isRunning ? "Listening..." : "Not listening")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(.white.opacity(0.6))
             
             if !isRunning {
                 Text("Click Start to begin")
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.white.opacity(0.4))
             }
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 20)
+        .padding(.vertical, 30)
+        .background(Color(white: 0.11))
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .accessibilityElement(children: .combine)
         .accessibilityLabel(isRunning ? "Listening for speech" : "Not listening. Click start to begin.")
     }
@@ -237,61 +372,40 @@ struct EmptyTranscriptView: View {
 
 struct WaitingForSuggestionView: View {
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 10) {
             ProgressView()
                 .scaleEffect(0.7)
+                .tint(.white)
             
             Text("Generating suggestions...")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                .font(.system(size: 12))
+                .foregroundStyle(.white.opacity(0.6))
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(12)
-        .background(Color.primary.opacity(0.03))
-        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .padding(14)
+        .background(Color(white: 0.11))
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 }
 
-struct HeaderView: View {
-    @Bindable var viewModel: NotchViewModel
-    
-    var body: some View {
-        HStack {
-            StatusIndicatorView(state: viewModel.state)
-            
-            Spacer()
-            
-            Button(action: { viewModel.onExpandToggle?() }) {
-                Image(systemName: "xmark")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(.secondary)
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(String(localized: "Close"))
-            .accessibilityIdentifier(AccessibilityIdentifiers.closeButton)
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
-    }
-}
 
 struct TranscriptSectionView: View {
     let transcript: String
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 8) {
             Text("TRANSCRIPT")
-                .font(.system(.caption2, weight: .semibold))
-                .foregroundStyle(.tertiary)
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.5))
             
             Text(transcript)
-                .font(.system(.caption, design: .monospaced))
-                .foregroundStyle(.secondary)
+                .font(.system(size: 12, design: .monospaced))
+                .foregroundStyle(.white.opacity(0.8))
                 .lineLimit(4)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(10)
-                .background(Color.primary.opacity(0.05))
-                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .padding(12)
+                .background(Color(white: 0.11))
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(String(localized: "Transcript"))
@@ -304,15 +418,19 @@ struct TopicView: View {
     let topic: String
     
     var body: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: 8) {
             Text("TOPIC:")
-                .font(.system(.caption2, weight: .semibold))
-                .foregroundStyle(.tertiary)
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.5))
             
             Text(topic)
-                .font(.system(.caption, weight: .medium))
-                .foregroundStyle(.primary)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(.white)
         }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(Color(white: 0.11))
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         .accessibilityElement(children: .combine)
         .accessibilityLabel(String(localized: "Current topic"))
         .accessibilityValue(topic)
@@ -325,18 +443,18 @@ struct SuggestionCardView: View {
     let onCopy: () -> Void
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Text(title)
-                    .font(.system(.caption2, weight: .semibold))
-                    .foregroundStyle(.tertiary)
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.5))
                 
                 Spacer()
                 
                 Button(action: onCopy) {
                     Image(systemName: "doc.on.doc")
                         .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.white.opacity(0.5))
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(String(localized: "Copy to clipboard"))
@@ -345,13 +463,13 @@ struct SuggestionCardView: View {
             }
             
             Text(content)
-                .font(.system(.body))
-                .foregroundStyle(.primary)
+                .font(.system(size: 14))
+                .foregroundStyle(.white)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(12)
-        .background(Color.primary.opacity(0.05))
-        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .padding(14)
+        .background(Color(white: 0.11))
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .accessibilityElement(children: .contain)
         .accessibilityLabel(title)
         .accessibilityValue(content)
@@ -362,19 +480,19 @@ struct InsightCardView: View {
     let content: String
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 8) {
             Text("INSIGHT")
-                .font(.system(.caption2, weight: .semibold))
-                .foregroundStyle(.tertiary)
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.5))
             
             Text(content)
-                .font(.system(.callout))
-                .foregroundStyle(.secondary)
+                .font(.system(size: 13))
+                .foregroundStyle(.white.opacity(0.8))
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(12)
-        .background(Color.primary.opacity(0.03))
-        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .padding(14)
+        .background(Color(white: 0.11))
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .accessibilityElement(children: .combine)
         .accessibilityLabel(String(localized: "Insight"))
         .accessibilityValue(content)
@@ -386,18 +504,22 @@ struct FooterView: View {
     @State private var isDemoRunning = false
     
     var body: some View {
-        HStack {
+        HStack(spacing: 16) {
             Button(action: {
                 Task {
                     await viewModel.togglePipeline()
                 }
             }) {
-                HStack(spacing: 4) {
+                HStack(spacing: 6) {
                     Image(systemName: viewModel.isRunning ? "stop.fill" : "play.fill")
-                        .font(.system(size: 11))
+                        .font(.system(size: 12))
                     Text(viewModel.isRunning ? "Stop" : "Start")
-                        .font(.system(.caption, weight: .medium))
+                        .font(.system(size: 12, weight: .medium))
                 }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 8)
+                .background(viewModel.isRunning ? Color.red.opacity(0.2) : Color.green.opacity(0.2))
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
             }
             .buttonStyle(.plain)
             .foregroundStyle(viewModel.isRunning ? .red : .green)
@@ -413,17 +535,17 @@ struct FooterView: View {
                     isDemoRunning = false
                 }
             }) {
-                HStack(spacing: 4) {
+                HStack(spacing: 6) {
                     if isDemoRunning {
                         ProgressView()
                             .scaleEffect(0.6)
-                            .frame(width: 11, height: 11)
+                            .frame(width: 12, height: 12)
                     } else {
                         Image(systemName: "play.circle")
-                            .font(.system(size: 11))
+                            .font(.system(size: 12))
                     }
                     Text("Demo")
-                        .font(.system(.caption, weight: .medium))
+                        .font(.system(size: 12, weight: .medium))
                 }
             }
             .buttonStyle(.plain)
@@ -432,42 +554,38 @@ struct FooterView: View {
             .accessibilityLabel("Run demo simulation")
             .help("Simulates: 'What is design thinking?'")
             
-            Spacer()
-            
             Button(action: {
                 Task {
                     await viewModel.requestSuggestion()
                 }
             }) {
-                HStack(spacing: 4) {
+                HStack(spacing: 6) {
                     Image(systemName: "arrow.clockwise")
-                        .font(.system(size: 11))
+                        .font(.system(size: 12))
                     Text("Regenerate")
-                        .font(.system(.caption, weight: .medium))
+                        .font(.system(size: 12, weight: .medium))
                 }
             }
             .buttonStyle(.plain)
-            .foregroundStyle(.secondary)
+            .foregroundStyle(.white.opacity(0.6))
             .accessibilityLabel(String(localized: "Regenerate suggestions"))
             .accessibilityIdentifier(AccessibilityIdentifiers.regenerateButton)
             
-            Spacer()
-            
             Button(action: { viewModel.copyAllSuggestions() }) {
-                HStack(spacing: 4) {
+                HStack(spacing: 6) {
                     Image(systemName: "doc.on.doc")
-                        .font(.system(size: 11))
+                        .font(.system(size: 12))
                     Text("Copy All")
-                        .font(.system(.caption, weight: .medium))
+                        .font(.system(size: 12, weight: .medium))
                 }
             }
             .buttonStyle(.plain)
-            .foregroundStyle(.secondary)
+            .foregroundStyle(.white.opacity(0.6))
             .accessibilityLabel(String(localized: "Copy all suggestions"))
             .accessibilityIdentifier(AccessibilityIdentifiers.copyAllButton)
         }
         .padding(.horizontal, 16)
-        .padding(.vertical, 12)
+        .padding(.vertical, 14)
     }
 }
 
@@ -475,19 +593,13 @@ struct StatusIndicatorView: View {
     let state: PipelineState
     
     var body: some View {
-        HStack(spacing: 6) {
-            Circle()
-                .fill(statusColor)
-                .frame(width: 8, height: 8)
-                .shadow(color: statusColor.opacity(0.5), radius: 4)
-            
-            Text(statusText)
-                .font(.system(.caption, weight: .medium))
-                .foregroundStyle(.primary)
-        }
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(String(localized: "Status"))
-        .accessibilityValue(accessibilityValue)
+        Circle()
+            .fill(statusColor)
+            .frame(width: 10, height: 10)
+            .shadow(color: statusColor.opacity(0.6), radius: 4)
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel(String(localized: "Status"))
+            .accessibilityValue(accessibilityValue)
     }
     
     private var statusColor: Color {
@@ -496,15 +608,6 @@ struct StatusIndicatorView: View {
         case .listening: return .green
         case .processing: return .yellow
         case .error: return .red
-        }
-    }
-    
-    private var statusText: String {
-        switch state {
-        case .idle: return String(localized: "Idle")
-        case .listening: return String(localized: "Listening")
-        case .processing: return String(localized: "Processing")
-        case .error: return String(localized: "Error")
         }
     }
     
@@ -540,7 +643,7 @@ struct VisualEffectView: NSViewRepresentable {
     let viewModel = NotchViewModel()
     viewModel.state = .listening
     return NotchOverlayView(viewModel: viewModel)
-        .frame(width: 200, height: 32)
+        .frame(width: 700, height: 140)
 }
 
 #Preview("Expanded") {
@@ -548,5 +651,5 @@ struct VisualEffectView: NSViewRepresentable {
     viewModel.loadMockData()
     viewModel.isExpanded = true
     return NotchOverlayView(viewModel: viewModel)
-        .frame(width: 340, height: 460)
+        .frame(width: 700, height: 460)
 }
