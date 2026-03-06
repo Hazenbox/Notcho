@@ -8,7 +8,9 @@ struct NotchOverlayView: View {
             // Vibrancy background
             VisualEffectView(material: .sidebar, blendingMode: .behindWindow)
             
-            if viewModel.isExpanded {
+            if viewModel.showOnboarding {
+                OnboardingView(viewModel: viewModel)
+            } else if viewModel.isExpanded {
                 ExpandedContentView(viewModel: viewModel)
             } else {
                 CollapsedContentView(viewModel: viewModel)
@@ -17,6 +19,7 @@ struct NotchOverlayView: View {
         .clipShape(RoundedRectangle(cornerRadius: viewModel.isExpanded ? 16 : 20, style: .continuous))
         .shadow(color: .black.opacity(0.3), radius: 20, x: 0, y: 10)
         .onAppear {
+            viewModel.setup()
             viewModel.loadMockData()
         }
     }
@@ -270,7 +273,30 @@ struct FooterView: View {
     
     var body: some View {
         HStack {
-            Button(action: {}) {
+            Button(action: {
+                Task {
+                    await viewModel.togglePipeline()
+                }
+            }) {
+                HStack(spacing: 4) {
+                    Image(systemName: viewModel.isRunning ? "stop.fill" : "play.fill")
+                        .font(.system(size: 11))
+                    Text(viewModel.isRunning ? "Stop" : "Start")
+                        .font(.system(.caption, weight: .medium))
+                }
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(viewModel.isRunning ? .red : .green)
+            .accessibilityLabel(viewModel.isRunning ? String(localized: "Stop listening") : String(localized: "Start listening"))
+            .accessibilityIdentifier(viewModel.isRunning ? AccessibilityIdentifiers.stopButton : AccessibilityIdentifiers.startButton)
+            
+            Spacer()
+            
+            Button(action: {
+                Task {
+                    await viewModel.requestSuggestion()
+                }
+            }) {
                 HStack(spacing: 4) {
                     Image(systemName: "arrow.clockwise")
                         .font(.system(size: 11))

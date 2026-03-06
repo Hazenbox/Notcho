@@ -10,8 +10,42 @@ final class NotchViewModel {
     var currentTopic: String = ""
     var suggestion: SuggestionResult?
     var onExpandToggle: (() -> Void)?
+    var isRunning = false
+    var showOnboarding = false
     
-    // Mock data for Phase 1 testing
+    private var pipeline: PipelineCoordinator?
+    
+    func setup() {
+        pipeline = DependencyContainer.shared.makePipelineCoordinator()
+        
+        Task {
+            await pipeline?.setStateHandler { [weak self] state in
+                Task { @MainActor in
+                    self?.state = state
+                }
+            }
+            
+            await pipeline?.setTranscriptHandler { [weak self] transcript in
+                Task { @MainActor in
+                    self?.currentTranscript = transcript.text
+                }
+            }
+            
+            await pipeline?.setSuggestionHandler { [weak self] suggestion in
+                Task { @MainActor in
+                    self?.suggestion = suggestion
+                }
+            }
+        }
+        
+        checkOnboardingNeeded()
+    }
+    
+    private func checkOnboardingNeeded() {
+        let hasAPIKey = KeychainManager.hasKey(.anthropicAPIKey)
+        showOnboarding = !hasAPIKey
+    }
+    
     func loadMockData() {
         currentTopic = "Sprint Planning"
         currentTranscript = "...so the rollout plan is to start with two pilot teams and measure adoption over the next four weeks. What do you all think about this approach?"
@@ -24,6 +58,36 @@ final class NotchViewModel {
             contextSnapshot: currentTranscript
         )
         state = .listening
+    }
+    
+    func startPipeline() async {
+        guard !isRunning else { return }
+        
+        do {
+            try await pipeline?.start()
+            isRunning = true
+        } catch {
+            state = .error(error.localizedDescription)
+        }
+    }
+    
+    func stopPipeline() async {
+        guard isRunning else { return }
+        
+        await pipeline?.stop()
+        isRunning = false
+    }
+    
+    func togglePipeline() async {
+        if isRunning {
+            await stopPipeline()
+        } else {
+            await startPipeline()
+        }
+    }
+    
+    func requestSuggestion() async {
+        await pipeline?.requestImmediateSuggestion()
     }
     
     func update(transcript: TranscriptChunk?, suggestion: SuggestionResult?, state: PipelineState) {
@@ -49,5 +113,10 @@ final class NotchViewModel {
         Insight: \(suggestion.insight)
         """
         copyToClipboard(text)
+    }
+    
+    func saveAPIKey(_ key: String) {
+        _ = KeychainManager.save(key, for: .anthropicAPIKey)
+        showOnboarding = false
     }
 }

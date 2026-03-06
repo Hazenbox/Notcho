@@ -1,10 +1,5 @@
 import Foundation
 
-protocol MeetingDetecting: Sendable {
-    func detectActiveMeeting() async -> Bool
-    var isMeetingActive: Bool { get async }
-}
-
 @MainActor
 final class DependencyContainer {
     static let shared = DependencyContainer()
@@ -24,7 +19,17 @@ final class DependencyContainer {
     }
     
     func makeMeetingDetector() -> any MeetingDetecting {
-        fatalError("Meeting detector not yet implemented")
+        return MeetingDetector()
+    }
+    
+    func makePipelineCoordinator() -> PipelineCoordinator {
+        return PipelineCoordinator(
+            audioCapture: makeAudioCapture(),
+            transcriber: makeTranscriber(),
+            contextEngine: makeContextAnalyzer(),
+            suggestionGenerator: makeSuggestionGenerator(),
+            meetingDetector: makeMeetingDetector()
+        )
     }
     
     func makeContextAnalyzer() -> any ContextAnalyzing {
