@@ -12,14 +12,15 @@ looks and feels like a native macOS system feature.
 
 | Constraint              | Target                                    |
 | ----------------------- | ----------------------------------------- |
-| Platform                | macOS 14.2+ (Sonoma)                      |
-| Language                | Swift 5.9+                                |
+| Platform                | macOS 14.2+ (Sonoma), Apple Silicon only  |
+| Language                | Swift 5.9+ (strict concurrency)           |
 | UI framework            | SwiftUI + AppKit (window mgmt)            |
 | End-to-end latency      | < 5 seconds (realistic budget)            |
 | Screen-share visibility | Invisible (`sharingType = .none`)         |
-| LLM provider            | Anthropic Claude (Sonnet / Haiku)         |
+| LLM provider            | Anthropic Claude via SwiftAnthropic       |
 | STT engine              | WhisperKit (local, Swift-native)          |
 | System audio            | Core Audio Hardware Taps                  |
+| Accessibility           | Full VoiceOver + keyboard navigation      |
 | Build tooling           | Cursor (AI-assisted)                      |
 
 ---
@@ -33,13 +34,13 @@ looks and feels like a native macOS system feature.
 │  ┌─────────────────┐    AsyncStream<AudioChunk>              │
 │  │   Audio          │──────────────────────┐                 │
 │  │   Capture        │                      │                 │
-│  │   Manager        │                      ▼                 │
-│  │  (AVAudioEngine) │           ┌─────────────────┐          │
+│  │   (protocol)     │                      ▼                 │
+│  │                  │           ┌─────────────────┐          │
 │  └─────────────────┘            │  Transcription   │          │
-│                                 │  Engine          │          │
-│  ┌─────────────────┐            │  (WhisperKit     │          │
-│  │  Core Audio      │            │   + SFSpeech     │          │
-│  │  Tap Capture     │────────►  │   fallback)      │          │
+│                                 │  (protocol)      │          │
+│  ┌─────────────────┐            │                  │          │
+│  │  Core Audio      │────────►  │  WhisperKit      │          │
+│  │  Tap Capture     │            │  + SFSpeech      │          │
 │  │  (System Audio)  │            └────────┬────────┘          │
 │  └─────────────────┘                      │                  │
 │                                           │ AsyncStream      │
@@ -57,14 +58,14 @@ looks and feels like a native macOS system feature.
 │         │                      ┌─────────────────┐           │
 │         │                      │  Suggestion     │           │
 │         │                      │  Generator      │           │
-│         │                      │  (Claude API)   │           │
+│         │                      │  (SwiftAnthropic)│           │
 │         │                      └────────┬────────┘           │
 │         │                               │ SuggestionResult   │
 │         ▼                               ▼                    │
 │  ┌────────────────────────────────────────────┐              │
 │  │        Notch UI (SwiftUI + NSVisualEffect) │              │
 │  │  @Observable ViewModel · @MainActor        │              │
-│  │  Pure native macOS system look             │              │
+│  │  Full VoiceOver accessibility              │              │
 │  └────────────────────────────────────────────┘              │
 └──────────────────────────────────────────────────────────────┘
 ```
@@ -75,6 +76,7 @@ looks and feels like a native macOS system feature.
 - Audio capture and transcription produce `AsyncStream` values.
 - Context Engine and Suggestion Generator are **actors** to avoid data races.
 - The UI observes an `@Observable` ViewModel updated on `@MainActor`.
+- **All major components use protocol abstractions for testability.**
 
 ---
 
@@ -84,7 +86,7 @@ looks and feels like a native macOS system feature.
 | ---------------------- | ---------- | ------------------------------------- |
 | Audio chunk capture    | 3 seconds  | Rolling buffer, emit every 3s         |
 | Transcription          | 0.3–1.0s   | WhisperKit local (base model)         |
-| Context analysis       | < 50ms     | Local string ops, no network          |
+| Context analysis       | < 50ms     | Local string ops + NaturalLanguage    |
 | LLM suggestion         | 2–4s       | Claude Sonnet streaming               |
 | UI render              | < 16ms     | SwiftUI diffing                       |
 | **Total**              | **~5–8s**  |                                       |
@@ -142,6 +144,7 @@ in mic-only mode and inform the user.
 
 - Swift Package: `github.com/argmaxinc/WhisperKit` (v0.16.0+)
 - Model: `base` (~140MB) for English, `small` for multilingual
+- **Model download on first launch** with progress UI in onboarding
 - Runs on-device — no network latency, no API costs, better privacy
 - Built-in Voice Activity Detection (VAD) for silence detection
 - Native Apple Silicon optimization (Core ML, Neural Engine)
@@ -160,45 +163,101 @@ for fixes.
 
 ### 4.3 LLM for Suggestions
 
-**Provider: Anthropic Claude**
+**Provider: Anthropic Claude via SwiftAnthropic package**
+
+- Swift Package: `github.com/jamesrochabrun/SwiftAnthropic` (v2.1.8+)
+- Production-tested with streaming, tool calling, proper SSE parsing
+- No custom HTTP client needed — use the package's `AnthropicService`
 
 | Model          | Speed   | Cost (input/output)     | Use case                  |
 | -------------- | ------- | ----------------------- | ------------------------- |
 | Claude Haiku   | ~1-2s   | $0.25 / $1.25 per 1M    | Default continuous mode   |
 | Claude Sonnet  | ~2-4s   | $3.00 / $15.00 per 1M   | Quality mode (user toggle)|
 
-**Default:** Claude 3.5 Sonnet for quality suggestions. User can switch to
-Haiku for faster/cheaper continuous suggestions in Settings.
+**Default:** Claude Haiku for cost efficiency. User can enable "Quality Mode"
+(Sonnet) for important meetings.
 
-**Streaming:** Use Anthropic Messages API with `stream: true`. Parse SSE
-events via `URLSession.AsyncBytes`.
-
-**Cost estimation (Sonnet at 1 call per 8 seconds):**
-
-- ~350 tokens input (system + 30s transcript) + ~100 tokens output per call
-- Per call: ~$0.005
-- Per hour (450 calls): ~$2.25
-- Per month (80 hours meetings): ~$180
-
-**Cost estimation (Haiku):**
+**Cost estimation (Haiku at 1 call per 8 seconds):**
 
 - Per hour: ~$0.19
 - Per month (80 hours): ~$15
 
-**Recommendation:** Default to Haiku for continuous mode, let user enable
-"Quality Mode" (Sonnet) for important meetings.
+**Cost estimation (Sonnet):**
 
-### 4.4 Networking
+- Per hour: ~$2.25
+- Per month (80 hours): ~$180
 
-- HTTP client: `URLSession` with async/await
-- Streaming: `URLSession.AsyncBytes` for SSE parsing of Claude streams
-- Base URL: `https://api.anthropic.com/v1/messages`
-- Headers: `x-api-key`, `anthropic-version: 2023-06-01`
-- No third-party HTTP libraries needed
+**API version:** Use `anthropic-version: 2024-01-01` (latest stable).
+
+### 4.4 Observability
+
+**Crash Reporting: Sentry**
+
+- Swift Package: `github.com/getsentry/sentry-cocoa`
+- Automatic crash reports with stack traces
+- Performance monitoring for latency tracking
+- Privacy-compliant with data scrubbing
+
+**Analytics: TelemetryDeck**
+
+- Swift Package: `github.com/TelemetryDeck/SwiftClient`
+- Privacy-first, GDPR-compliant, no cookie banners
+- Track feature usage, model selection, error rates
+- No PII collected
 
 ---
 
-## 5. Data Models
+## 5. Protocol Abstractions (Dependency Injection)
+
+All major components define protocol abstractions for testability and
+flexibility. This follows the Dependency Inversion Principle.
+
+```swift
+// MARK: - Audio Capture Protocol
+
+protocol AudioCapturing: Sendable {
+    func startCapture() -> AsyncStream<AudioChunk>
+    func stopCapture()
+}
+
+// MARK: - Transcription Protocol
+
+protocol Transcribing: Sendable {
+    func transcribe(_ chunk: AudioChunk) async throws -> TranscriptChunk
+}
+
+// MARK: - Suggestion Generation Protocol
+
+protocol SuggestionGenerating: Sendable {
+    func generate(from context: MeetingContext) async throws -> SuggestionResult
+}
+
+// MARK: - Meeting Detection Protocol
+
+protocol MeetingDetecting: Sendable {
+    func detectActiveMeeting() -> MeetingApp?
+    func startMonitoring(onChange: @escaping (MeetingApp?) -> Void)
+    func stopMonitoring()
+}
+
+// MARK: - Context Analysis Protocol
+
+protocol ContextAnalyzing: Sendable {
+    func update(with chunk: TranscriptChunk) async -> MeetingContext
+    func reset() async
+}
+```
+
+**Benefits:**
+
+- Unit tests inject mock implementations
+- Swap implementations without changing consumers
+- Clear API contracts between components
+- Enables parallel development
+
+---
+
+## 6. Data Models
 
 ```swift
 // MARK: - Audio
@@ -266,22 +325,27 @@ enum PipelineError: Error, Sendable {
     case llmRateLimited(retryAfter: TimeInterval)
     case networkUnavailable
     case audioDeviceChanged
+    case unsupportedHardware          // Intel Mac
+    case modelDownloadFailed(underlying: Error)
 }
 ```
 
 ---
 
-## 6. Project Structure
+## 7. Project Structure
 
 ```
 NotchAssistant/
 ├── NotchAssistant.xcodeproj
+├── Package.swift                            // SPM dependencies
 ├── NotchAssistant/
 │   ├── App/
 │   │   ├── NotchAssistantApp.swift          // @main, app lifecycle
 │   │   ├── AppDelegate.swift                // NSApplicationDelegate, menu bar
 │   │   ├── PermissionManager.swift          // mic permission handling
-│   │   └── LoginItemManager.swift           // SMAppService auto-launch
+│   │   ├── LoginItemManager.swift           // SMAppService auto-launch
+│   │   ├── HardwareChecker.swift            // Apple Silicon verification
+│   │   └── DependencyContainer.swift        // DI container for protocols
 │   │
 │   ├── UI/
 │   │   ├── NotchWindowController.swift      // NSPanel setup, positioning
@@ -291,38 +355,62 @@ NotchAssistant/
 │   │   ├── SuggestionCardView.swift         // Single suggestion/question/insight
 │   │   ├── StatusIndicatorView.swift        // Listening/processing/error dot
 │   │   ├── SettingsView.swift               // API key, model, role config
-│   │   ├── OnboardingView.swift             // Permission walkthrough
+│   │   ├── OnboardingView.swift             // Permission + model download
+│   │   ├── ModelDownloadView.swift          // WhisperKit model progress
 │   │   └── NotchViewModel.swift             // @Observable, @MainActor
 │   │
 │   ├── Audio/
+│   │   ├── Protocols/
+│   │   │   └── AudioCapturing.swift         // Protocol definition
 │   │   ├── AudioCaptureManager.swift        // AVAudioEngine mic capture
 │   │   ├── CoreAudioTapCapture.swift        // Core Audio Hardware Taps
 │   │   ├── AudioMixer.swift                 // Merge mic + system into one stream
 │   │   ├── AudioDeviceMonitor.swift         // Route change notifications
+│   │   ├── AudioBufferAccumulator.swift     // Thread-safe buffer (lock-based)
 │   │   └── AudioChunk.swift                 // AudioChunk model
 │   │
 │   ├── Speech/
+│   │   ├── Protocols/
+│   │   │   └── Transcribing.swift           // Protocol definition
 │   │   ├── WhisperKitTranscriber.swift      // WhisperKit Swift integration
 │   │   ├── AppleSpeechTranscriber.swift     // SFSpeechRecognizer interim results
-│   │   └── TranscriptionRouter.swift        // Routes to WhisperKit or Apple
+│   │   ├── TranscriptionRouter.swift        // Routes to WhisperKit or Apple
+│   │   └── ModelDownloader.swift            // WhisperKit model download manager
 │   │
 │   ├── AI/
+│   │   ├── Protocols/
+│   │   │   └── SuggestionGenerating.swift   // Protocol definition
 │   │   ├── ContextEngine.swift              // Actor: maintains MeetingContext
-│   │   ├── SuggestionGenerator.swift        // Actor: calls Claude, parses response
+│   │   ├── SuggestionGenerator.swift        // Actor: calls Claude via SwiftAnthropic
 │   │   ├── PromptBuilder.swift              // Constructs system/user prompts
-│   │   └── AnthropicClient.swift            // URLSession-based, streaming support
+│   │   ├── JSONResponseParser.swift         // Robust JSON extraction
+│   │   └── TopicExtractor.swift             // NaturalLanguage-based topic detection
 │   │
 │   ├── Pipeline/
 │   │   ├── PipelineCoordinator.swift        // Actor: orchestrates full pipeline
 │   │   └── PipelineState.swift              // State enum + error types
 │   │
 │   ├── Detection/
+│   │   ├── Protocols/
+│   │   │   └── MeetingDetecting.swift       // Protocol definition
 │   │   ├── MeetingDetector.swift            // Detects active meeting apps
 │   │   └── MeetingApp.swift                 // Known app bundle IDs + display names
 │   │
 │   ├── Config/
 │   │   ├── AppSettings.swift                // @AppStorage backed settings
 │   │   └── KeychainManager.swift            // Secure API key storage
+│   │
+│   ├── Accessibility/
+│   │   ├── AccessibilityIdentifiers.swift   // Centralized accessibility IDs
+│   │   └── AccessibilityLabels.swift        // Localized accessibility strings
+│   │
+│   ├── Localization/
+│   │   ├── Localizable.xcstrings            // String catalog
+│   │   └── LocalizedStrings.swift           // Type-safe string keys
+│   │
+│   ├── Observability/
+│   │   ├── CrashReporter.swift              // Sentry integration
+│   │   └── Analytics.swift                  // TelemetryDeck integration
 │   │
 │   ├── Models/
 │   │   ├── TranscriptChunk.swift
@@ -335,19 +423,54 @@ NotchAssistant/
 │       └── Info.plist
 │
 ├── NotchAssistantTests/
+│   ├── Mocks/
+│   │   ├── MockAudioCapture.swift
+│   │   ├── MockTranscriber.swift
+│   │   ├── MockSuggestionGenerator.swift
+│   │   └── MockMeetingDetector.swift
 │   ├── ContextEngineTests.swift
 │   ├── PromptBuilderTests.swift
 │   ├── PipelineCoordinatorTests.swift
-│   └── MockTranscriber.swift
+│   ├── JSONResponseParserTests.swift
+│   └── TopicExtractorTests.swift
 │
 └── README.md
 ```
 
 ---
 
-## 7. Component Specifications
+## 8. Component Specifications
 
-### 7.1 NotchWindowController
+### 8.1 HardwareChecker (Apple Silicon Requirement)
+
+```swift
+import Foundation
+
+enum HardwareChecker {
+    static var isAppleSilicon: Bool {
+        #if arch(arm64)
+        return true
+        #else
+        return false
+        #endif
+    }
+
+    static func verifyOrExit() {
+        guard isAppleSilicon else {
+            let alert = NSAlert()
+            alert.messageText = String(localized: "Unsupported Hardware")
+            alert.informativeText = String(localized: "Notch Assistant requires a Mac with Apple Silicon (M1 or later) for real-time transcription.")
+            alert.alertStyle = .critical
+            alert.addButton(withTitle: String(localized: "Quit"))
+            alert.runModal()
+            NSApplication.shared.terminate(nil)
+            return
+        }
+    }
+}
+```
+
+### 8.2 NotchWindowController
 
 Manages the `NSPanel` that anchors to the notch. Uses `NSScreen.safeAreaInsets`
 for dynamic notch detection.
@@ -390,25 +513,22 @@ final class NotchWindowController {
         let screenFrame = screen.frame
 
         if hasNotch {
-            // Notch-anchored positioning
-            let notchWidth: CGFloat = 200       // collapsed width
-            let notchHeight: CGFloat = 32       // collapsed height
+            let notchWidth: CGFloat = 200
+            let notchHeight: CGFloat = 32
             let safeTop = screen.safeAreaInsets.top
             let x = screenFrame.midX - notchWidth / 2
             let y = screenFrame.maxY - safeTop - notchHeight
             return NSRect(x: x, y: y, width: notchWidth, height: notchHeight)
         } else {
-            // Floating pill for non-notch Macs
             let pillWidth: CGFloat = 200
             let pillHeight: CGFloat = 32
             let x = screenFrame.midX - pillWidth / 2
-            let y = screenFrame.maxY - 60       // 60pt from top
+            let y = screenFrame.maxY - 60
             return NSRect(x: x, y: y, width: pillWidth, height: pillHeight)
         }
     }
 
     func expand() {
-        // Animate to expanded size (320x440) to show suggestions
         NSAnimationContext.runAnimationGroup { context in
             context.duration = 0.3
             context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
@@ -417,7 +537,6 @@ final class NotchWindowController {
     }
 
     func collapse() {
-        // Animate back to compact indicator
         NSAnimationContext.runAnimationGroup { context in
             context.duration = 0.25
             context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
@@ -436,27 +555,65 @@ final class NotchWindowController {
 }
 ```
 
-**States:**
+### 8.3 AudioBufferAccumulator (Thread-Safe)
 
-| State      | Size     | Content                              |
-| ---------- | -------- | ------------------------------------ |
-| Collapsed  | 200x32   | Status dot + "Listening" label       |
-| Expanded   | 320x440  | Transcript + suggestions + controls  |
-| Hidden     | 0x0      | Fully hidden, hotkey to restore      |
-
-### 7.2 AudioCaptureManager
+Solves the actor isolation issue with `AVAudioEngine` tap closures.
 
 ```swift
-actor AudioCaptureManager {
+import Foundation
+
+/// Thread-safe audio buffer accumulator using locks.
+/// Used because AVAudioEngine tap callbacks run on audio thread,
+/// not within actor isolation.
+final class AudioBufferAccumulator: @unchecked Sendable {
+    private var buffer = Data()
+    private let lock = NSLock()
+    private let targetSampleCount: Int
+    private let onChunkReady: (Data) -> Void
+
+    init(chunkDurationSeconds: Double, sampleRate: Double, onChunkReady: @escaping (Data) -> Void) {
+        self.targetSampleCount = Int(chunkDurationSeconds * sampleRate)
+        self.onChunkReady = onChunkReady
+    }
+
+    func append(_ data: Data) {
+        lock.lock()
+        defer { lock.unlock() }
+
+        buffer.append(data)
+
+        // 4 bytes per Float32 sample
+        if buffer.count >= targetSampleCount * 4 {
+            let chunk = buffer
+            buffer = Data()
+            // Call outside lock to avoid deadlock
+            DispatchQueue.main.async { [weak self] in
+                self?.onChunkReady(chunk)
+            }
+        }
+    }
+
+    func reset() {
+        lock.lock()
+        defer { lock.unlock() }
+        buffer = Data()
+    }
+}
+```
+
+### 8.4 AudioCaptureManager (Fixed)
+
+```swift
+final class AudioCaptureManager: AudioCapturing, @unchecked Sendable {
     private let engine = AVAudioEngine()
     private let targetSampleRate: Double = 16000
+    private var accumulator: AudioBufferAccumulator?
 
     func startCapture() -> AsyncStream<AudioChunk> {
         AsyncStream { continuation in
             let inputNode = engine.inputNode
             let inputFormat = inputNode.outputFormat(forBus: 0)
 
-            // Convert to 16kHz mono for WhisperKit
             guard let converter = AVAudioConverter(
                 from: inputFormat,
                 to: AVAudioFormat(
@@ -470,33 +627,30 @@ actor AudioCaptureManager {
                 return
             }
 
-            var audioBuffer = Data()
-            let chunkDuration: TimeInterval = 3.0
-            let samplesPerChunk = Int(targetSampleRate * chunkDuration)
+            // Thread-safe accumulator
+            accumulator = AudioBufferAccumulator(
+                chunkDurationSeconds: 3.0,
+                sampleRate: targetSampleRate
+            ) { [weak self] chunkData in
+                let chunk = AudioChunk(
+                    id: UUID(),
+                    timestamp: Date(),
+                    pcmData: chunkData,
+                    sampleRate: self?.targetSampleRate ?? 16000,
+                    source: .microphone
+                )
+                continuation.yield(chunk)
+            }
 
             inputNode.installTap(
                 onBus: 0,
                 bufferSize: 4096,
                 format: inputFormat
-            ) { buffer, time in
-                // Convert and accumulate
-                let convertedBuffer = self.convert(buffer, using: converter)
-                if let data = convertedBuffer?.toData() {
-                    audioBuffer.append(data)
-                }
-
-                // Emit chunk when we have enough samples
-                if audioBuffer.count >= samplesPerChunk * 4 { // 4 bytes per Float32
-                    let chunk = AudioChunk(
-                        id: UUID(),
-                        timestamp: Date(),
-                        pcmData: audioBuffer,
-                        sampleRate: self.targetSampleRate,
-                        source: .microphone
-                    )
-                    continuation.yield(chunk)
-                    audioBuffer = Data()
-                }
+            ) { [weak self] buffer, _ in
+                guard let self = self,
+                      let converted = self.convert(buffer, using: converter),
+                      let data = converted.toData() else { return }
+                self.accumulator?.append(data)
             }
 
             do {
@@ -506,19 +660,37 @@ actor AudioCaptureManager {
                 return
             }
 
-            continuation.onTermination = { _ in
-                inputNode.removeTap(onBus: 0)
-                self.engine.stop()
+            continuation.onTermination = { [weak self] _ in
+                self?.stopCapture()
             }
         }
+    }
+
+    func stopCapture() {
+        engine.inputNode.removeTap(onBus: 0)
+        engine.stop()
+        accumulator?.reset()
+        accumulator = nil
     }
 
     private func convert(
         _ buffer: AVAudioPCMBuffer,
         using converter: AVAudioConverter
     ) -> AVAudioPCMBuffer? {
-        // Conversion implementation
-        // ...
+        let frameCount = AVAudioFrameCount(
+            Double(buffer.frameLength) * targetSampleRate / buffer.format.sampleRate
+        )
+        guard let outputBuffer = AVAudioPCMBuffer(
+            pcmFormat: converter.outputFormat,
+            frameCapacity: frameCount
+        ) else { return nil }
+
+        var error: NSError?
+        converter.convert(to: outputBuffer, error: &error) { _, outStatus in
+            outStatus.pointee = .haveData
+            return buffer
+        }
+        return error == nil ? outputBuffer : nil
     }
 }
 
@@ -530,80 +702,58 @@ extension AVAudioPCMBuffer {
 }
 ```
 
-### 7.3 AudioDeviceMonitor
-
-Handles audio route changes (headphones plugged in, Bluetooth disconnect, etc.)
-
-```swift
-final class AudioDeviceMonitor {
-    private var propertyListenerBlock: AudioObjectPropertyListenerBlock?
-
-    func startMonitoring(onChange: @escaping () -> Void) {
-        var address = AudioObjectPropertyAddress(
-            mSelector: kAudioHardwarePropertyDefaultInputDevice,
-            mScope: kAudioObjectPropertyScopeGlobal,
-            mElement: kAudioObjectPropertyElementMain
-        )
-
-        propertyListenerBlock = { _, _ in
-            DispatchQueue.main.async {
-                onChange()
-            }
-            return 0
-        }
-
-        AudioObjectAddPropertyListenerBlock(
-            AudioObjectID(kAudioObjectSystemObject),
-            &address,
-            nil,
-            propertyListenerBlock!
-        )
-    }
-
-    func stopMonitoring() {
-        // Remove listener
-    }
-}
-```
-
-### 7.4 PipelineCoordinator
-
-The central orchestrator. Owns the pipeline lifecycle.
+### 8.5 PipelineCoordinator (with Proper Cleanup)
 
 ```swift
 actor PipelineCoordinator {
-    private let audioCapture: AudioCaptureManager
-    private let coreAudioTap: CoreAudioTapCapture
-    private let transcriber: TranscriptionRouter
-    private let contextEngine: ContextEngine
-    private let suggestionGen: SuggestionGenerator
+    private let audioCapture: any AudioCapturing
+    private let transcriber: any Transcribing
+    private let contextEngine: any ContextAnalyzing
+    private let suggestionGen: any SuggestionGenerating
+    private let meetingDetector: any MeetingDetecting
     private let viewModel: NotchViewModel
-    private let deviceMonitor: AudioDeviceMonitor
+    private let analytics: Analytics
 
     private var pipelineTask: Task<Void, Never>?
+    private var isShuttingDown = false
+
+    init(
+        audioCapture: any AudioCapturing,
+        transcriber: any Transcribing,
+        contextEngine: any ContextAnalyzing,
+        suggestionGen: any SuggestionGenerating,
+        meetingDetector: any MeetingDetecting,
+        viewModel: NotchViewModel,
+        analytics: Analytics
+    ) {
+        self.audioCapture = audioCapture
+        self.transcriber = transcriber
+        self.contextEngine = contextEngine
+        self.suggestionGen = suggestionGen
+        self.meetingDetector = meetingDetector
+        self.viewModel = viewModel
+        self.analytics = analytics
+    }
 
     func start(meetingApp: MeetingApp?) {
+        guard !isShuttingDown else { return }
+
+        analytics.track("pipeline_started", properties: [
+            "meeting_app": meetingApp?.name ?? "manual"
+        ])
+
         pipelineTask = Task {
-            let micStream = await audioCapture.startCapture()
+            let micStream = audioCapture.startCapture()
 
             for await chunk in micStream {
                 guard !Task.isCancelled else { break }
 
-                // Step 1: Transcribe
                 do {
                     let transcript = try await transcriber.transcribe(chunk)
-
-                    // Step 2: Update context
                     let context = await contextEngine.update(with: transcript)
 
-                    // Step 3: Generate suggestion (only if context warrants it)
-                    if context.pendingQuestion != nil
-                        || context.silenceGapDetected
-                        || context.speakerChangeDetected {
-
-                        let suggestion = try await suggestionGen.generate(
-                            from: context
-                        )
+                    if shouldGenerateSuggestion(context) {
+                        let suggestion = try await suggestionGen.generate(from: context)
                         await viewModel.update(
                             transcript: transcript,
                             suggestion: suggestion,
@@ -617,6 +767,9 @@ actor PipelineCoordinator {
                         )
                     }
                 } catch let error as PipelineError {
+                    analytics.track("pipeline_error", properties: [
+                        "error": String(describing: error)
+                    ])
                     await viewModel.update(
                         transcript: nil,
                         suggestion: nil,
@@ -629,43 +782,66 @@ actor PipelineCoordinator {
         }
     }
 
-    func stop() {
+    func stop() async {
+        isShuttingDown = true
         pipelineTask?.cancel()
         pipelineTask = nil
+        audioCapture.stopCapture()
+        await contextEngine.reset()
+        await viewModel.update(transcript: nil, suggestion: nil, state: .idle)
+        isShuttingDown = false
+        analytics.track("pipeline_stopped")
     }
 
     func handleAudioDeviceChange() async {
-        // Restart capture with new device
-        stop()
+        await stop()
         try? await Task.sleep(for: .milliseconds(500))
-        start(meetingApp: nil)
+        start(meetingApp: meetingDetector.detectActiveMeeting())
+    }
+
+    private func shouldGenerateSuggestion(_ context: MeetingContext) -> Bool {
+        context.pendingQuestion != nil ||
+        context.silenceGapDetected ||
+        context.speakerChangeDetected
     }
 }
 ```
 
-### 7.5 ContextEngine
+### 8.6 ContextEngine (with Topic Extraction)
 
 ```swift
-actor ContextEngine {
+actor ContextEngine: ContextAnalyzing {
     private var transcriptWindow: [TranscriptChunk] = []
     private var currentTopic: String = ""
     private var keyPoints: [String] = []
     private let windowDuration: TimeInterval = 30
+    private let topicExtractor = TopicExtractor()
 
-    func update(with chunk: TranscriptChunk) -> MeetingContext {
+    func update(with chunk: TranscriptChunk) async -> MeetingContext {
         transcriptWindow.append(chunk)
         pruneOldChunks()
 
         let fullText = transcriptWindow.map(\.text).joined(separator: " ")
 
+        // Extract topic using NaturalLanguage framework
+        if let extractedTopic = topicExtractor.extractTopic(from: fullText) {
+            currentTopic = extractedTopic
+        }
+
         return MeetingContext(
-            topic: detectTopic(fullText),
+            topic: currentTopic,
             recentTranscript: transcriptWindow,
-            keyPoints: extractKeyPoints(fullText),
+            keyPoints: keyPoints,
             pendingQuestion: detectQuestion(fullText),
             speakerChangeDetected: detectSpeakerChange(chunk),
             silenceGapDetected: detectSilenceGap(chunk)
         )
+    }
+
+    func reset() async {
+        transcriptWindow.removeAll()
+        currentTopic = ""
+        keyPoints.removeAll()
     }
 
     private func pruneOldChunks() {
@@ -684,16 +860,11 @@ actor ContextEngine {
         return nil
     }
 
-    private func detectTopic(_ text: String) -> String {
-        currentTopic
-    }
-
-    private func extractKeyPoints(_ text: String) -> [String] {
-        keyPoints
-    }
-
     private func detectSpeakerChange(_ chunk: TranscriptChunk) -> Bool {
-        false
+        // Use WhisperKit's VAD confidence drop as proxy
+        guard transcriptWindow.count >= 2 else { return false }
+        let previous = transcriptWindow[transcriptWindow.count - 2]
+        return previous.confidence < 0.3 && chunk.confidence > 0.7
     }
 
     private func detectSilenceGap(_ chunk: TranscriptChunk) -> Bool {
@@ -702,100 +873,61 @@ actor ContextEngine {
 }
 ```
 
-### 7.6 AnthropicClient
+### 8.7 TopicExtractor (NaturalLanguage Framework)
 
 ```swift
-actor AnthropicClient {
-    private let apiKey: String
-    private let baseURL = URL(string: "https://api.anthropic.com/v1/messages")!
+import NaturalLanguage
 
-    struct Message: Codable {
-        let role: String
-        let content: String
-    }
+final class TopicExtractor: Sendable {
+    func extractTopic(from text: String) -> String? {
+        let tagger = NLTagger(tagSchemes: [.nameTypeOrLexicalClass])
+        tagger.string = text
 
-    struct Request: Codable {
-        let model: String
-        let max_tokens: Int
-        let system: String
-        let messages: [Message]
-        let stream: Bool
-    }
+        var nounCounts: [String: Int] = [:]
 
-    func streamCompletion(
-        model: String,
-        system: String,
-        messages: [Message]
-    ) -> AsyncThrowingStream<String, Error> {
-        AsyncThrowingStream { continuation in
-            Task {
-                var request = URLRequest(url: baseURL)
-                request.httpMethod = "POST"
-                request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-                request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
-                request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
-
-                let body = Request(
-                    model: model,
-                    max_tokens: 500,
-                    system: system,
-                    messages: messages,
-                    stream: true
-                )
-                request.httpBody = try? JSONEncoder().encode(body)
-
-                do {
-                    let (bytes, response) = try await URLSession.shared.bytes(for: request)
-
-                    guard let httpResponse = response as? HTTPURLResponse,
-                          httpResponse.statusCode == 200 else {
-                        continuation.finish(throwing: PipelineError.llmRequestFailed(
-                            underlying: NSError(domain: "HTTP", code: (response as? HTTPURLResponse)?.statusCode ?? 0)
-                        ))
-                        return
-                    }
-
-                    for try await line in bytes.lines {
-                        if line.hasPrefix("data: ") {
-                            let jsonString = String(line.dropFirst(6))
-                            if jsonString == "[DONE]" { break }
-
-                            if let data = jsonString.data(using: .utf8),
-                               let event = try? JSONDecoder().decode(StreamEvent.self, from: data),
-                               let text = event.delta?.text {
-                                continuation.yield(text)
-                            }
-                        }
-                    }
-                    continuation.finish()
-                } catch {
-                    continuation.finish(throwing: error)
+        tagger.enumerateTags(
+            in: text.startIndex..<text.endIndex,
+            unit: .word,
+            scheme: .nameTypeOrLexicalClass
+        ) { tag, range in
+            if tag == .noun || tag == .organizationName || tag == .placeName {
+                let word = String(text[range]).lowercased()
+                if word.count > 3 { // Skip short words
+                    nounCounts[word, default: 0] += 1
                 }
             }
+            return true
         }
-    }
 
-    struct StreamEvent: Codable {
-        let type: String
-        let delta: Delta?
-
-        struct Delta: Codable {
-            let type: String?
-            let text: String?
-        }
+        // Return most frequent noun as topic
+        return nounCounts
+            .sorted { $0.value > $1.value }
+            .first?
+            .key
+            .capitalized
     }
 }
 ```
 
-### 7.7 SuggestionGenerator + PromptBuilder
+### 8.8 SuggestionGenerator (using SwiftAnthropic)
 
 ```swift
-actor SuggestionGenerator {
-    private let client: AnthropicClient
+import SwiftAnthropic
+
+actor SuggestionGenerator: SuggestionGenerating {
+    private let service: AnthropicService
     private let promptBuilder: PromptBuilder
+    private let responseParser: JSONResponseParser
     private var lastCallTime: Date = .distantPast
     private let minInterval: TimeInterval = 8
     private let settings: AppSettings
+
+    init(apiKey: String, settings: AppSettings) {
+        self.service = AnthropicServiceFactory.service(apiKey: apiKey)
+        self.promptBuilder = PromptBuilder()
+        self.responseParser = JSONResponseParser()
+        self.settings = settings
+    }
 
     func generate(from context: MeetingContext) async throws -> SuggestionResult {
         let now = Date()
@@ -806,33 +938,44 @@ actor SuggestionGenerator {
         lastCallTime = now
 
         let (system, userMessage) = promptBuilder.build(from: context)
-        let model = settings.qualityMode
-            ? "claude-3-5-sonnet-latest"
-            : "claude-3-5-haiku-latest"
+        let model: Model = settings.qualityMode ? .claude35Sonnet : .claude35Haiku
 
-        var fullResponse = ""
-        let stream = client.streamCompletion(
+        let parameters = MessageParameter(
             model: model,
-            system: system,
-            messages: [AnthropicClient.Message(role: "user", content: userMessage)]
+            messages: [.init(role: .user, content: .text(userMessage))],
+            maxTokens: 500,
+            system: .text(system)
         )
 
-        for try await chunk in stream {
-            fullResponse += chunk
+        var fullResponse = ""
+
+        let stream = try await service.streamMessage(parameters)
+        for try await event in stream {
+            if case .contentBlockDelta(let delta) = event,
+               case .textDelta(let text) = delta.delta {
+                fullResponse += text
+            }
         }
 
-        return parse(fullResponse, context: context)
+        return responseParser.parse(fullResponse, context: context)
     }
+}
+```
 
-    private func parse(_ response: String, context: MeetingContext) -> SuggestionResult {
-        // Parse JSON from response
-        // Expected format: {"suggestion": "...", "question": "...", "insight": "..."}
-        guard let data = response.data(using: .utf8),
+### 8.9 JSONResponseParser (Robust)
+
+```swift
+final class JSONResponseParser: Sendable {
+    func parse(_ response: String, context: MeetingContext) -> SuggestionResult {
+        let cleanedJSON = extractJSON(from: response)
+
+        guard let data = cleanedJSON.data(using: .utf8),
               let json = try? JSONDecoder().decode(SuggestionJSON.self, from: data) else {
+            // Fallback: use raw response as suggestion
             return SuggestionResult(
                 id: UUID(),
                 timestamp: Date(),
-                suggestion: response,
+                suggestion: response.trimmingCharacters(in: .whitespacesAndNewlines),
                 question: "",
                 insight: "",
                 contextSnapshot: context.recentTranscript.map(\.text).joined(separator: " ")
@@ -849,6 +992,23 @@ actor SuggestionGenerator {
         )
     }
 
+    /// Extracts JSON object from response that may contain markdown fences or preamble
+    private func extractJSON(from response: String) -> String {
+        var cleaned = response
+
+        // Remove markdown code fences
+        cleaned = cleaned.replacingOccurrences(of: "```json", with: "")
+        cleaned = cleaned.replacingOccurrences(of: "```", with: "")
+
+        // Find JSON object boundaries
+        guard let start = cleaned.firstIndex(of: "{"),
+              let end = cleaned.lastIndex(of: "}") else {
+            return response
+        }
+
+        return String(cleaned[start...end])
+    }
+
     struct SuggestionJSON: Codable {
         let suggestion: String
         let question: String
@@ -857,55 +1017,90 @@ actor SuggestionGenerator {
 }
 ```
 
-**Prompt template:**
+### 8.10 MeetingDetector (Enhanced)
 
 ```swift
-struct PromptBuilder {
-    var userRole: String = "Software Engineer"
+import AppKit
+import CoreAudio
 
-    func build(from context: MeetingContext) -> (system: String, user: String) {
-        let system = """
-        You are a real-time meeting assistant for a \(userRole).
-        You receive the last 30 seconds of meeting transcript.
+final class MeetingDetector: MeetingDetecting {
+    static let knownMeetingApps: [MeetingApp] = [
+        MeetingApp(name: "Zoom", bundleID: "us.zoom.xos", windowPatterns: ["Meeting", "Zoom"]),
+        MeetingApp(name: "Google Meet", bundleID: "com.google.Chrome", windowPatterns: ["Meet -", "meet.google.com"]),
+        MeetingApp(name: "Microsoft Teams", bundleID: "com.microsoft.teams2", windowPatterns: ["Meeting", "Call"]),
+        MeetingApp(name: "Slack", bundleID: "com.tinyspeck.slackmacgap", windowPatterns: ["Huddle"]),
+        MeetingApp(name: "FaceTime", bundleID: "com.apple.FaceTime", windowPatterns: []),
+        MeetingApp(name: "Discord", bundleID: "com.hnc.Discord", windowPatterns: ["Voice Connected"]),
+        MeetingApp(name: "Webex", bundleID: "com.webex.meetingmanager", windowPatterns: ["Meeting"]),
+    ]
 
-        Respond with ONLY valid JSON in this exact format:
-        {"suggestion": "...", "question": "...", "insight": "..."}
+    private var workspaceObserver: NSObjectProtocol?
 
-        Rules:
-        - suggestion: A concise response the user could say next (1-2 sentences).
-        - question: A strategic question that advances the discussion.
-        - insight: A brief observation about the conversation dynamics or topic.
-        - Be specific to the transcript. Never be generic.
-        - If the transcript is unclear or trivial, use empty strings.
-        - Output ONLY the JSON object, no markdown, no explanation.
-        """
+    func detectActiveMeeting() -> MeetingApp? {
+        let workspace = NSWorkspace.shared
+        let running = workspace.runningApplications
 
-        let transcript = context.recentTranscript
-            .map(\.text)
-            .joined(separator: " ")
+        for app in Self.knownMeetingApps {
+            guard let runningApp = running.first(where: { $0.bundleIdentifier == app.bundleID }) else {
+                continue
+            }
 
-        let user = """
-        Current topic: \(context.topic.isEmpty ? "Not yet detected" : context.topic)
-        Key points: \(context.keyPoints.isEmpty ? "None" : context.keyPoints.joined(separator: "; "))
-        \(context.pendingQuestion.map { "A question was asked: \($0)" } ?? "")
-
-        Transcript (last 30s):
-        \(transcript)
-        """
-
-        return (system, user)
+            // Check if app is active or has audio session
+            if runningApp.isActive || isAppUsingAudio(bundleID: app.bundleID) {
+                // For Chrome-based apps, check window title
+                if app.bundleID == "com.google.Chrome" {
+                    if hasMatchingWindow(app: runningApp, patterns: app.windowPatterns) {
+                        return app
+                    }
+                } else {
+                    return app
+                }
+            }
+        }
+        return nil
     }
+
+    func startMonitoring(onChange: @escaping (MeetingApp?) -> Void) {
+        workspaceObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didActivateApplicationNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            onChange(self?.detectActiveMeeting())
+        }
+    }
+
+    func stopMonitoring() {
+        if let observer = workspaceObserver {
+            NSWorkspace.shared.notificationCenter.removeObserver(observer)
+        }
+    }
+
+    private func isAppUsingAudio(bundleID: String) -> Bool {
+        // Check if app has active audio session via Core Audio
+        // This is a simplified check; full implementation would query audio devices
+        return true // Placeholder
+    }
+
+    private func hasMatchingWindow(app: NSRunningApplication, patterns: [String]) -> Bool {
+        // Would require Accessibility API to get window titles
+        // For MVP, just check if app is active
+        return app.isActive
+    }
+}
+
+struct MeetingApp: Sendable {
+    let name: String
+    let bundleID: String
+    let windowPatterns: [String]
 }
 ```
 
 ---
 
-## 8. UI Design — Pure Native macOS System Look
+## 9. UI Design — Pure Native macOS System Look
 
-The overlay looks and feels like a native macOS system feature (similar to
-Spotlight, Notification Center, or Control Center).
-
-### 8.1 Design Principles
+### 9.1 Design Principles
 
 | Element          | Specification                                   |
 | ---------------- | ----------------------------------------------- |
@@ -918,155 +1113,209 @@ Spotlight, Notification Center, or Control Center).
 | Typography       | SF Pro, SF Mono exclusively                     |
 | Animations       | Spring (damping 0.7, ~300ms)                    |
 
-### 8.2 Color Palette
+### 9.2 Color Palette
 
 ```swift
-// All colors from system palette
 let primaryLabel = NSColor.labelColor
 let secondaryLabel = NSColor.secondaryLabelColor
 let tertiaryLabel = NSColor.tertiaryLabelColor
 let separator = NSColor.separatorColor
 let accent = NSColor.controlAccentColor
 
-// Status colors (system semantic)
 let listening = NSColor.systemGreen
 let processing = NSColor.systemYellow
 let error = NSColor.systemRed
 ```
 
-### 8.3 Typography
+### 9.3 Typography
 
 ```swift
-// Transcript
-Font.system(.caption, design: .monospaced)  // SF Mono, 11pt
-
-// Suggestions
-Font.system(.body)                          // SF Pro, 13pt
-
-// Labels
-Font.system(.caption2).uppercased()         // SF Pro, 10pt, uppercase
-
-// Status
-Font.system(.caption)                       // SF Pro, 11pt
+Font.system(.caption, design: .monospaced)  // Transcript: SF Mono, 11pt
+Font.system(.body)                          // Suggestions: SF Pro, 13pt
+Font.system(.caption2).uppercased()         // Labels: SF Pro, 10pt
+Font.system(.caption)                       // Status: SF Pro, 11pt
 ```
 
-### 8.4 Visual States
+### 9.4 SF Symbols Used
 
-**Collapsed (Idle):**
-
-```
-    ┌──────────────────────┐
-    │  ● Listening         │    ← 200x32, status dot + label
-    └──────────────────────┘
-```
-
-**Compact (Suggestion Ready):**
-
-```
-    ┌────────────────────────────────┐
-    │  ● Listening                   │
-    │                                │
-    │  Topic: Sprint planning        │
-    │  "Consider suggesting..."      │    ← 260x80, teaser
-    └────────────────────────────────┘
-```
-
-**Expanded (Full View):**
-
-```
-    ┌─────────────────────────────────────────┐
-    │  ● Listening                       ✕    │
-    │                                         │
-    │  ┌─────────────────────────────────┐    │
-    │  │ ...so the rollout plan is to    │    │
-    │  │ start with two pilot teams...   │    │  ← Live transcript
-    │  └─────────────────────────────────┘    │
-    │                                         │
-    │  TOPIC: Design System Rollout           │
-    │                                         │
-    │  ┌─ SUGGESTION ────────────────────┐    │
-    │  │ We could start with mobile—     │ ⧉  │
-    │  │ they've shown the most interest │    │
-    │  └─────────────────────────────────┘    │
-    │                                         │
-    │  ┌─ QUESTION ──────────────────────┐    │
-    │  │ What metric defines success?    │ ⧉  │
-    │  └─────────────────────────────────┘    │
-    │                                         │
-    │  ┌─ INSIGHT ───────────────────────┐    │
-    │  │ Discussion leaning incremental  │    │
-    │  └─────────────────────────────────┘    │
-    │                                         │
-    │  [ ↻ Regenerate ]        [ ⧉ Copy All ] │
-    └─────────────────────────────────────────┘
-                   320x440
-```
-
-### 8.5 SF Symbols Used
-
-| Purpose          | Symbol                        |
-| ---------------- | ----------------------------- |
-| Status listening | `circle.fill` (green tint)    |
-| Status processing| `circle.fill` (yellow tint)   |
-| Status error     | `exclamationmark.circle.fill` |
-| Copy             | `doc.on.doc`                  |
-| Regenerate       | `arrow.clockwise`             |
-| Close            | `xmark`                       |
-| Settings         | `gear`                        |
-| Mic active       | `mic.fill`                    |
-| Mic muted        | `mic.slash`                   |
+| Purpose           | Symbol                        |
+| ----------------- | ----------------------------- |
+| Status listening  | `circle.fill` (green tint)    |
+| Status processing | `circle.fill` (yellow tint)   |
+| Status error      | `exclamationmark.circle.fill` |
+| Copy              | `doc.on.doc`                  |
+| Regenerate        | `arrow.clockwise`             |
+| Close             | `xmark`                       |
+| Settings          | `gear`                        |
+| Mic active        | `mic.fill`                    |
+| Mic muted         | `mic.slash`                   |
 
 ---
 
-## 9. Permission Handling
+## 10. Accessibility
 
-The app requires Microphone permission. Accessibility is optional for global
-hotkeys.
+All UI elements must be accessible via VoiceOver and keyboard navigation.
 
-| Permission        | API                              | Required for        | If denied                        |
-| ----------------- | -------------------------------- | ------------------- | -------------------------------- |
-| Microphone        | `AVCaptureDevice.requestAccess`  | Mic capture         | App cannot function — show error |
-| Accessibility     | `AXIsProcessTrusted`             | Global hotkeys      | Hotkeys disabled, menu bar only  |
-
-**Onboarding flow:**
-
-1. Welcome screen explaining what the app does.
-2. Request Microphone — required, block if denied.
-3. Request Accessibility — optional, explain hotkeys benefit.
-4. API key entry (Claude) — required.
-5. Ready screen.
-
----
-
-## 10. Meeting Detection
-
-`MeetingDetector` identifies when a meeting is active so the pipeline starts/
-stops automatically.
+### 10.1 Accessibility Identifiers
 
 ```swift
-final class MeetingDetector {
-    static let knownMeetingApps: [MeetingApp] = [
-        MeetingApp(name: "Zoom", bundleID: "us.zoom.xos"),
-        MeetingApp(name: "Google Meet", bundleID: "com.google.Chrome", windowTitle: "Meet"),
-        MeetingApp(name: "Microsoft Teams", bundleID: "com.microsoft.teams2"),
-        MeetingApp(name: "Slack Huddle", bundleID: "com.tinyspeck.slackmacgap"),
-        MeetingApp(name: "FaceTime", bundleID: "com.apple.FaceTime"),
-        MeetingApp(name: "Discord", bundleID: "com.hnc.Discord"),
-        MeetingApp(name: "Webex", bundleID: "com.webex.meetingmanager"),
-    ]
+enum AccessibilityIdentifiers {
+    static let statusIndicator = "status-indicator"
+    static let transcriptView = "transcript-view"
+    static let suggestionCard = "suggestion-card"
+    static let questionCard = "question-card"
+    static let insightCard = "insight-card"
+    static let copyButton = "copy-button"
+    static let regenerateButton = "regenerate-button"
+    static let closeButton = "close-button"
+    static let expandButton = "expand-button"
+}
+```
 
-    func detectActiveMeeting() -> MeetingApp? {
-        let workspace = NSWorkspace.shared
-        let running = workspace.runningApplications
-        for app in knownMeetingApps {
-            if running.contains(where: { $0.bundleIdentifier == app.bundleID }) {
-                return app
-            }
+### 10.2 Implementation
+
+```swift
+struct StatusIndicatorView: View {
+    let state: PipelineState
+
+    var body: some View {
+        HStack {
+            Circle()
+                .fill(statusColor)
+                .frame(width: 8, height: 8)
+            Text(statusText)
+                .font(.caption)
         }
-        return nil
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(accessibilityLabel)
+        .accessibilityValue(accessibilityValue)
+        .accessibilityIdentifier(AccessibilityIdentifiers.statusIndicator)
+    }
+
+    private var accessibilityLabel: String {
+        String(localized: "Meeting Assistant Status")
+    }
+
+    private var accessibilityValue: String {
+        switch state {
+        case .idle: return String(localized: "Idle")
+        case .listening: return String(localized: "Listening to meeting")
+        case .processing: return String(localized: "Processing audio")
+        case .error: return String(localized: "Error occurred")
+        }
+    }
+}
+
+struct SuggestionCardView: View {
+    let title: String
+    let content: String
+    let onCopy: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+
+            Text(content)
+                .font(.body)
+
+            Button(action: onCopy) {
+                Image(systemName: "doc.on.doc")
+            }
+            .accessibilityLabel(String(localized: "Copy to clipboard"))
+            .accessibilityHint(String(localized: "Copies this suggestion to your clipboard"))
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(title)
+        .accessibilityValue(content)
     }
 }
 ```
+
+### 10.3 Keyboard Navigation
+
+```swift
+struct NotchOverlayView: View {
+    @FocusState private var focusedElement: FocusableElement?
+
+    enum FocusableElement: Hashable {
+        case suggestion, question, insight, regenerate, copyAll, close
+    }
+
+    var body: some View {
+        VStack {
+            // ... content ...
+        }
+        .focusable()
+        .onKeyPress(.tab) {
+            advanceFocus()
+            return .handled
+        }
+        .onKeyPress(.escape) {
+            dismiss()
+            return .handled
+        }
+    }
+}
+```
+
+---
+
+## 11. Localization
+
+All user-facing strings use `String(localized:)` for i18n support.
+
+### 11.1 String Catalog Structure
+
+```
+Localization/
+├── Localizable.xcstrings     // Main string catalog
+└── InfoPlist.xcstrings       // Info.plist strings
+```
+
+### 11.2 Usage Pattern
+
+```swift
+// Always use localized strings
+Text(String(localized: "Listening", comment: "Status when actively listening"))
+
+// With interpolation
+Text(String(localized: "Topic: \(topic)", comment: "Current meeting topic"))
+
+// Accessibility
+.accessibilityLabel(String(localized: "Copy suggestion to clipboard"))
+```
+
+### 11.3 Initial Localizations
+
+- English (en) — default
+- Add more post-MVP based on demand
+
+---
+
+## 12. Permission Handling
+
+| Permission    | API                             | Required for    | If denied                        |
+| ------------- | ------------------------------- | --------------- | -------------------------------- |
+| Microphone    | `AVCaptureDevice.requestAccess` | Mic capture     | App cannot function — show error |
+| Accessibility | `AXIsProcessTrusted`            | Global hotkeys  | Hotkeys disabled, menu bar only  |
+
+**Onboarding flow:**
+
+1. Hardware check (Apple Silicon required)
+2. Welcome screen explaining what the app does
+3. Request Microphone — required, block if denied
+4. WhisperKit model download with progress indicator
+5. Request Accessibility — optional, explain hotkeys benefit
+6. API key entry (Claude) — required
+7. Ready screen
+
+---
+
+## 13. Meeting Detection
+
+See Section 8.10 for enhanced `MeetingDetector` implementation.
 
 **Modes:**
 
@@ -1076,24 +1325,25 @@ final class MeetingDetector {
 
 ---
 
-## 11. Configuration & Settings
+## 14. Configuration & Settings
 
 ```swift
 struct AppSettings {
     @AppStorage("userRole") var userRole: String = "Software Engineer"
     @AppStorage("transcriptionEngine") var engine: TranscriptionEngine = .whisperKit
     @AppStorage("claudeModel") var claudeModel: ClaudeModel = .haiku
-    @AppStorage("qualityMode") var qualityMode: Bool = false    // Sonnet vs Haiku
+    @AppStorage("qualityMode") var qualityMode: Bool = false
     @AppStorage("audioChunkDuration") var chunkDuration: Double = 3.0
     @AppStorage("transcriptWindow") var transcriptWindow: Double = 30.0
     @AppStorage("llmCallInterval") var llmCallInterval: Double = 8.0
     @AppStorage("meetingDetectionMode") var detectionMode: DetectionMode = .auto
     @AppStorage("launchAtLogin") var launchAtLogin: Bool = false
+    @AppStorage("analyticsEnabled") var analyticsEnabled: Bool = true
 }
 
 enum TranscriptionEngine: String, CaseIterable {
-    case whisperKit       // WhisperKit on-device
-    case appleSpeech      // SFSpeechRecognizer
+    case whisperKit
+    case appleSpeech
 }
 
 enum ClaudeModel: String, CaseIterable {
@@ -1102,30 +1352,30 @@ enum ClaudeModel: String, CaseIterable {
 }
 
 enum DetectionMode: String, CaseIterable {
-    case auto             // detect meeting apps
-    case manual           // user toggle
-    case alwaysOn         // always listening
+    case auto
+    case manual
+    case alwaysOn
 }
 ```
 
 ---
 
-## 12. Keyboard Shortcuts
+## 15. Keyboard Shortcuts
 
-| Shortcut    | Action                                |
-| ----------- | ------------------------------------- |
-| Cmd+Shift+M | Toggle expand/collapse                |
-| Cmd+Shift+H | Hide completely                       |
-| Cmd+Shift+S | Force generate suggestion now         |
-| Cmd+Shift+L | Toggle listening on/off               |
-| Cmd+Shift+C | Copy last suggestion to clipboard     |
+| Shortcut    | Action                            |
+| ----------- | --------------------------------- |
+| Cmd+Shift+M | Toggle expand/collapse            |
+| Cmd+Shift+H | Hide completely                   |
+| Cmd+Shift+S | Force generate suggestion now     |
+| Cmd+Shift+L | Toggle listening on/off           |
+| Cmd+Shift+C | Copy last suggestion to clipboard |
 
 Registered via `NSEvent.addGlobalMonitorForEvents` (requires Accessibility
 permission) with `NSEvent.addLocalMonitorForEvents` as fallback.
 
 ---
 
-## 13. Login Item (Auto-Launch)
+## 16. Login Item (Auto-Launch)
 
 ```swift
 import ServiceManagement
@@ -1139,7 +1389,7 @@ final class LoginItemManager {
                 try SMAppService.mainApp.unregister()
             }
         } catch {
-            print("Failed to update login item: \(error)")
+            CrashReporter.capture(error)
         }
     }
 
@@ -1151,27 +1401,27 @@ final class LoginItemManager {
 
 ---
 
-## 14. Error Handling Strategy
+## 17. Error Handling Strategy
 
-### 14.1 Retry Policy
+### 17.1 Retry Policy
 
 | Error type           | Retry | Max attempts | Backoff        |
 | -------------------- | ----- | ------------ | -------------- |
 | Network timeout      | Yes   | 3            | Exponential 1s |
-| Claude rate limit    | Yes   | 1            | Wait header    |
+| Claude rate limit    | Yes   | 1            | Retry-After hdr|
 | Claude 500 error     | Yes   | 2            | Fixed 2s       |
 | Transcription fail   | Yes   | 1            | Switch engine  |
 | Permission denied    | No    | —            | Show settings  |
 | Audio device changed | No    | —            | Restart capture|
 
-### 14.2 Fallback Chain
+### 17.2 Fallback Chain
 
 ```
 Transcription: WhisperKit → SFSpeechRecognizer
 Audio:         Mic + System → Mic only → Pause + notify
 ```
 
-### 14.3 UI Error States
+### 17.3 UI Error States
 
 - **Transient errors** (network blip): yellow status dot, auto-retry silently.
 - **Degraded mode** (system audio unavailable): orange dot + banner.
@@ -1179,9 +1429,9 @@ Audio:         Mic + System → Mic only → Pause + notify
 
 ---
 
-## 15. Distribution & Signing
+## 18. Distribution & Signing
 
-### 15.1 Required Entitlements
+### 18.1 Required Entitlements
 
 **NotchAssistant.entitlements:**
 
@@ -1200,89 +1450,79 @@ Audio:         Mic + System → Mic only → Pause + notify
 </plist>
 ```
 
-**Note:** App Sandbox is disabled for direct distribution. If targeting Mac App
-Store, sandbox must be enabled with appropriate exceptions.
-
-### 15.2 Info.plist Privacy Descriptions
+### 18.2 Info.plist Privacy Descriptions
 
 ```xml
 <key>NSMicrophoneUsageDescription</key>
 <string>Notch Assistant needs microphone access to transcribe meeting audio and provide real-time suggestions.</string>
 ```
 
-### 15.3 Hardened Runtime
+### 18.3 Hardened Runtime
 
-Enable Hardened Runtime in Xcode:
-- Signing & Capabilities → + Capability → Hardened Runtime
-- Enable: Allow Microphone Access
+Enable in Xcode: Signing & Capabilities → Hardened Runtime → Allow Microphone Access
 
-### 15.4 Code Signing
+### 18.4 Code Signing & Notarization
 
 ```bash
-# Sign with Developer ID for direct distribution
 codesign --force --deep --sign "Developer ID Application: Your Name (TEAMID)" \
     --entitlements NotchAssistant.entitlements \
     --options runtime \
     NotchAssistant.app
-```
 
-### 15.5 Notarization
-
-```bash
-# Create ZIP for notarization
 ditto -c -k --keepParent NotchAssistant.app NotchAssistant.zip
 
-# Submit for notarization
 xcrun notarytool submit NotchAssistant.zip \
     --apple-id "you@example.com" \
     --team-id "TEAMID" \
     --password "@keychain:AC_PASSWORD" \
     --wait
 
-# Staple the ticket
 xcrun stapler staple NotchAssistant.app
 ```
 
 ---
 
-## 16. Privacy & Security
+## 19. Privacy & Security
 
-| Feature                        | Implementation                            |
-| ------------------------------ | ----------------------------------------- |
-| No transcript persistence      | Transcript buffer is in-memory only       |
-| Screen-share invisible         | `panel.sharingType = .none`               |
-| API keys in Keychain           | `KeychainManager` wraps Security framework|
-| Meeting-only listening         | Auto-start/stop via MeetingDetector       |
-| Configurable data retention    | Clear context on meeting end              |
+| Feature                   | Implementation                             |
+| ------------------------- | ------------------------------------------ |
+| No transcript persistence | Transcript buffer is in-memory only        |
+| Screen-share invisible    | `panel.sharingType = .none`                |
+| API keys in Keychain      | `KeychainManager` wraps Security framework |
+| Meeting-only listening    | Auto-start/stop via MeetingDetector        |
+| Clear on meeting end      | `contextEngine.reset()` called on stop     |
+| Analytics opt-out         | User toggle in Settings                    |
 
 ---
 
-## 17. Testing Strategy
+## 20. Testing Strategy
 
-### 17.1 Unit Tests
+### 20.1 Unit Tests
 
-| Component            | What to test                                      |
-| -------------------- | ------------------------------------------------- |
-| ContextEngine        | Transcript window pruning, question detection     |
-| PromptBuilder        | Prompt formatting, edge cases (empty transcript)  |
-| MeetingDetector      | Known app matching, edge cases                    |
-| SuggestionGenerator  | Rate limiting, JSON parsing, error handling       |
-| AppSettings          | Default values, persistence                       |
+| Component          | What to test                                  |
+| ------------------ | --------------------------------------------- |
+| ContextEngine      | Transcript window pruning, question detection |
+| PromptBuilder      | Prompt formatting, edge cases                 |
+| MeetingDetector    | Known app matching, edge cases                |
+| SuggestionGenerator| Rate limiting, JSON parsing                   |
+| JSONResponseParser | Markdown fence stripping, malformed JSON      |
+| TopicExtractor     | Noun extraction, frequency counting           |
+| AppSettings        | Default values, persistence                   |
 
-### 17.2 Integration Tests
+### 20.2 Integration Tests
 
-| Test                      | Description                                       |
-| ------------------------- | ------------------------------------------------- |
-| Audio → Transcript        | Feed a WAV file, verify transcription output      |
-| Transcript → Context      | Feed transcript chunks, verify context state      |
-| Context → Suggestion      | Feed context, verify Claude call + parsed result  |
-| Full pipeline             | End-to-end with mock audio input                  |
+| Test                 | Description                                  |
+| -------------------- | -------------------------------------------- |
+| Audio → Transcript   | Feed a WAV file, verify transcription output |
+| Transcript → Context | Feed transcript chunks, verify context state |
+| Context → Suggestion | Feed context, verify Claude call + parsed    |
+| Full pipeline        | End-to-end with mock audio input             |
 
-### 17.3 Manual QA Checklist
+### 20.3 Manual QA Checklist
 
 - [ ] Overlay positions correctly on notch MacBooks (14", 16")
 - [ ] Floating pill positions correctly on non-notch Macs
-- [ ] Overlay invisible during screen share (test with Zoom, Meet)
+- [ ] Overlay invisible during screen share (Zoom, Meet)
 - [ ] Expand/collapse animation smooth at 60fps
 - [ ] Hotkeys work globally when Accessibility granted
 - [ ] Pipeline starts automatically when Zoom launches
@@ -1291,72 +1531,112 @@ xcrun stapler staple NotchAssistant.app
 - [ ] App handles headphone plug/unplug without crashing
 - [ ] Memory stays under 200MB during 1-hour meeting
 - [ ] CPU stays under 15% average during listening
+- [ ] VoiceOver reads all elements correctly
+- [ ] Keyboard navigation works in expanded state
+- [ ] Intel Mac shows friendly error and quits
+- [ ] Model download shows progress and handles offline
 
 ---
 
-## 18. Build Phases & Timeline
+## 21. Dependencies (Package.swift)
+
+```swift
+// swift-tools-version: 5.9
+import PackageDescription
+
+let package = Package(
+    name: "NotchAssistant",
+    platforms: [.macOS(.v14)],
+    dependencies: [
+        // LLM
+        .package(url: "https://github.com/jamesrochabrun/SwiftAnthropic", from: "2.1.8"),
+
+        // Speech-to-Text
+        .package(url: "https://github.com/argmaxinc/WhisperKit", from: "0.16.0"),
+
+        // Crash Reporting
+        .package(url: "https://github.com/getsentry/sentry-cocoa", from: "8.0.0"),
+
+        // Analytics
+        .package(url: "https://github.com/TelemetryDeck/SwiftClient", from: "2.0.0"),
+    ],
+    targets: [
+        .executableTarget(
+            name: "NotchAssistant",
+            dependencies: [
+                .product(name: "SwiftAnthropic", package: "SwiftAnthropic"),
+                .product(name: "WhisperKit", package: "WhisperKit"),
+                .product(name: "Sentry", package: "sentry-cocoa"),
+                .product(name: "TelemetryDeck", package: "SwiftClient"),
+            ]
+        ),
+        .testTarget(
+            name: "NotchAssistantTests",
+            dependencies: ["NotchAssistant"]
+        ),
+    ]
+)
+```
+
+---
+
+## 22. Build Phases & Timeline
 
 ### Phase 1: Foundation + Notch UI (Days 1–2)
 
-**Goal:** Visible, correctly positioned notch overlay with expand/collapse.
-
 | Task                                        | Est.  |
 | ------------------------------------------- | ----- |
-| Xcode project setup, signing, entitlements  | 2h    |
-| Evaluate DynamicNotchKit vs custom NSPanel  | 2h    |
+| Xcode project setup, SPM dependencies       | 2h    |
+| `HardwareChecker` — Apple Silicon gate      | 1h    |
+| `DependencyContainer` — protocol setup      | 2h    |
 | `NotchWindowController` with safeAreaInsets | 3h    |
 | Non-notch fallback (floating pill)          | 2h    |
 | `NotchOverlayView` — collapsed state        | 2h    |
 | `NotchOverlayView` — expanded state         | 3h    |
-| `StatusIndicatorView` with SF Symbols       | 1h    |
-| `SuggestionCardView` — native look          | 2h    |
-| Expand/collapse spring animation            | 2h    |
+| Accessibility labels + identifiers          | 2h    |
 | `NotchViewModel` with mock data             | 1h    |
 | `sharingType = .none` verification          | 1h    |
 
-**Deliverable:** Overlay shows mock suggestions, invisible during screen share.
+**Deliverable:** Accessible overlay with mock data, invisible during screen share.
 
 ### Phase 2: Audio Capture (Days 3–4)
 
-**Goal:** Capture mic audio as 16kHz PCM chunks.
-
 | Task                                        | Est.  |
 | ------------------------------------------- | ----- |
+| `AudioCapturing` protocol                   | 1h    |
 | `PermissionManager` — microphone            | 2h    |
-| `AudioCaptureManager` — AVAudioEngine tap   | 4h    |
+| `AudioBufferAccumulator` — thread-safe      | 2h    |
+| `AudioCaptureManager` — AVAudioEngine tap   | 3h    |
 | Audio format conversion to 16kHz mono       | 2h    |
-| `AudioDeviceMonitor` — route changes        | 3h    |
-| `MeetingDetector` — app detection logic     | 2h    |
-| Core Audio Taps research (stretch goal)     | 3h    |
+| `AudioDeviceMonitor` — route changes        | 2h    |
+| `MeetingDetector` — enhanced detection      | 3h    |
 
-**Deliverable:** Audio chunks stream to console, verified with playback.
+**Deliverable:** Audio chunks stream with proper concurrency safety.
 
 ### Phase 3: Transcription (Days 5–6)
 
-**Goal:** Convert audio chunks to text with < 1s latency locally.
-
 | Task                                        | Est.  |
 | ------------------------------------------- | ----- |
-| Add WhisperKit via SPM                      | 1h    |
+| `Transcribing` protocol                     | 1h    |
+| `ModelDownloader` — WhisperKit download UI  | 3h    |
 | `WhisperKitTranscriber` — load model, infer | 4h    |
-| `AppleSpeechTranscriber` — SFSpeech setup   | 3h    |
+| `AppleSpeechTranscriber` — SFSpeech setup   | 2h    |
 | `TranscriptionRouter` — engine selection    | 2h    |
 | Audio → transcript integration test         | 2h    |
 
-**Deliverable:** Live transcript from mic audio displayed in UI.
+**Deliverable:** Live transcript with model download onboarding.
 
 ### Phase 4: Context Engine + AI Suggestions (Days 7–9)
 
-**Goal:** Maintain conversation state and generate relevant suggestions.
-
 | Task                                        | Est.  |
 | ------------------------------------------- | ----- |
-| `ContextEngine` — sliding window, pruning   | 3h    |
-| Question detection heuristics               | 2h    |
-| Silence/speaker-change detection            | 2h    |
-| `AnthropicClient` — streaming completions   | 4h    |
+| `ContextAnalyzing` protocol                 | 1h    |
+| `ContextEngine` — sliding window, pruning   | 2h    |
+| `TopicExtractor` — NaturalLanguage          | 2h    |
+| `SuggestionGenerating` protocol             | 1h    |
+| `SuggestionGenerator` — SwiftAnthropic      | 3h    |
+| `JSONResponseParser` — robust extraction    | 2h    |
 | `PromptBuilder` — template + formatting     | 2h    |
-| `SuggestionGenerator` — rate limit, parse   | 3h    |
 | `KeychainManager` — API key storage         | 2h    |
 | Context → suggestion integration test       | 2h    |
 
@@ -1364,38 +1644,34 @@ xcrun stapler staple NotchAssistant.app
 
 ### Phase 5: Pipeline Integration (Days 10–11)
 
-**Goal:** Wire all components into a reliable end-to-end pipeline.
-
 | Task                                        | Est.  |
 | ------------------------------------------- | ----- |
-| `PipelineCoordinator` — full orchestration  | 5h    |
+| `PipelineCoordinator` — full orchestration  | 4h    |
 | Error handling + fallback chains            | 3h    |
-| Debounced LLM triggering logic              | 2h    |
 | Keyboard shortcuts (global + local)         | 3h    |
 | Menu bar integration (status item)          | 2h    |
 | `SettingsView` — configuration UI           | 3h    |
+| `CrashReporter` + `Analytics` integration   | 2h    |
 
-**Deliverable:** Fully functional pipeline from audio to suggestions.
+**Deliverable:** Fully functional pipeline with observability.
 
 ### Phase 6: Polish + Testing (Days 12–14)
 
-**Goal:** Stability, performance, distribution readiness.
-
 | Task                                        | Est.  |
 | ------------------------------------------- | ----- |
-| `OnboardingView` — permission walkthrough   | 3h    |
+| `OnboardingView` — full walkthrough         | 3h    |
 | `LoginItemManager` — auto-launch            | 1h    |
+| VoiceOver testing + fixes                   | 2h    |
+| Keyboard navigation testing                 | 1h    |
 | Memory profiling (Instruments)              | 2h    |
 | CPU profiling under sustained use           | 2h    |
 | Screen share invisibility QA                | 1h    |
 | Multi-display support testing               | 2h    |
-| Sleep/wake resilience                       | 1h    |
-| Audio device change testing                 | 2h    |
-| Unit tests for all actors                   | 3h    |
+| Unit tests with mock protocols              | 4h    |
 | Code signing + notarization                 | 3h    |
 | Bug fixes + edge cases                      | 4h    |
 
-**Deliverable:** Stable, notarized MVP ready for distribution.
+**Deliverable:** Stable, accessible, notarized MVP.
 
 ### Timeline Summary
 
@@ -1412,54 +1688,54 @@ xcrun stapler staple NotchAssistant.app
 
 ---
 
-## 19. Technical Risks & Mitigations
+## 23. Technical Risks & Mitigations
 
 | Risk                                     | Impact | Mitigation                                   |
 | ---------------------------------------- | ------ | -------------------------------------------- |
-| WhisperKit model too slow on older Macs  | High   | Fallback to SFSpeech; require Apple Silicon  |
-| Claude API latency spikes                | Medium | Use Haiku for speed; cache recent suggestion |
-| Claude suggestions not useful enough     | High   | Iterate prompts; let user rate suggestions   |
-| Memory leak during long meetings         | High   | Strict 30s window; Instruments profiling     |
-| App blocked by corporate MDM             | Medium | Document; offer manual API key entry         |
-| WhisperKit CoreML audio leak (issue #393)| Medium | Pin v0.16.0+; monitor for fixes              |
+| WhisperKit model too slow on older Macs  | High   | Require Apple Silicon, fallback to SFSpeech  |
+| Claude API latency spikes                | Medium | Use Haiku, cache recent suggestion           |
+| Claude suggestions not useful enough     | High   | Iterate prompts, add user feedback mechanism |
+| Memory leak during long meetings         | High   | Strict 30s window, Instruments profiling     |
+| App blocked by corporate MDM             | Medium | Document, offer manual API key entry         |
+| WhisperKit CoreML audio leak (#393)      | Medium | Pin v0.16.0+, monitor for fixes              |
+| Accessibility issues                     | Medium | Test with VoiceOver throughout development   |
 
 ---
 
-## 20. Competitive Positioning
+## 24. Competitive Positioning
 
 **Direct competitors:**
 
-| Product      | Pricing       | Key differentiator                          |
-| ------------ | ------------- | ------------------------------------------- |
-| Convo        | $15-38/mo     | Native Swift, real-time suggestions         |
-| Shmeetings   | $39 one-time  | 100% offline, Whisper + Llama               |
-| Granola      | $10/mo        | On-device transcription, speaker ID         |
-| Otter.ai     | $17/mo        | Native Mac app, searchable archives         |
+| Product    | Pricing      | Key differentiator                  |
+| ---------- | ------------ | ----------------------------------- |
+| Convo      | $15-38/mo    | Native Swift, real-time suggestions |
+| Shmeetings | $39 one-time | 100% offline, Whisper + Llama       |
+| Granola    | $10/mo       | On-device transcription, speaker ID |
+| Otter.ai   | $17/mo       | Native Mac app, searchable archives |
 
 **Notch Assistant differentiators:**
 
-1. **Notch-native UX** — anchors to the physical notch, feels like a macOS
-   system feature (no other app does this for meetings)
+1. **Notch-native UX** — anchors to the physical notch
 2. **Free / open-source** — vs. $15-38/mo competitors
-3. **Claude-powered** — leverages latest Anthropic models
-4. **Pure native macOS design** — matches Spotlight, not a generic floating panel
-5. **Privacy-first** — local transcription, no bot in meetings, optional
-   local-only mode
+3. **Claude-powered** — latest Anthropic models
+4. **Pure native macOS design** — matches Spotlight aesthetic
+5. **Privacy-first** — local transcription, no bot in meetings
+6. **Full accessibility** — VoiceOver + keyboard navigation
 
 ---
 
-## 21. Future Roadmap (Post-MVP)
+## 25. Future Roadmap (Post-MVP)
 
-| Feature                    | Description                                       |
-| -------------------------- | ------------------------------------------------- |
-| Speaker diarization        | Identify who is speaking via voice embeddings     |
-| Calendar integration       | Pre-load meeting context from calendar invite     |
-| Meeting type profiles      | Different prompt strategies per meeting type      |
-| Post-meeting summary       | Generate summary + action items when meeting ends |
-| Knowledge base             | Feed user's docs/notes for richer suggestions     |
-| Core Audio Taps            | System audio capture for remote participant audio |
-| Multi-language support     | WhisperKit multilingual model + translated UI     |
-| Local LLM option           | Llama.cpp for fully offline operation             |
+| Feature              | Description                                   |
+| -------------------- | --------------------------------------------- |
+| Speaker diarization  | Identify who is speaking via voice embeddings |
+| Calendar integration | Pre-load meeting context from calendar invite |
+| Meeting type profiles| Different prompts per meeting type            |
+| Post-meeting summary | Generate summary when meeting ends            |
+| Knowledge base       | Feed user's docs for richer suggestions       |
+| Core Audio Taps      | System audio capture for remote participants  |
+| Multi-language       | WhisperKit multilingual + translated UI       |
+| Local LLM            | Llama.cpp for fully offline operation         |
 
 ---
 
