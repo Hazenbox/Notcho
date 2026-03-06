@@ -1,0 +1,25 @@
+# Build output
+.build/
+DerivedData/
+*.xcodeproj/project.xcworkspace/xcuserdata/
+*.xcodeproj/xcuserdata/
+
+# SPM
+.swiftpm/
+Package.resolved
+
+# macOS
+.DS_Store
+*.swp
+*~
+
+# IDE
+.idea/
+*.xcworkspace/
+
+# Secrets
+.env
+*.xcconfig
+
+# Crash logs
+*.crash
