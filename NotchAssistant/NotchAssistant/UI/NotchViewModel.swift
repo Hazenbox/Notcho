@@ -107,7 +107,6 @@ final class NotchViewModel {
         """
         
         do {
-            state = .processing
             let response = try await client.sendMessage(prompt: prompt)
             
             if let parsed = JSONResponseParser.parse(response) {
@@ -131,8 +130,12 @@ final class NotchViewModel {
                 )
                 state = .listening
             }
+        } catch let error as PipelineError {
+            state = .error(error.errorDescription ?? "Unknown error")
+        } catch let error as URLError {
+            state = .error("Network error: \(error.localizedDescription)")
         } catch {
-            state = .error(error.localizedDescription)
+            state = .error("Error: \(error.localizedDescription)")
         }
         
         isRunning = false

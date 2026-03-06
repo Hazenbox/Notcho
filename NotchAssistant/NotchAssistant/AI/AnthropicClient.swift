@@ -2,6 +2,8 @@ import Foundation
 import SwiftAnthropic
 import os.log
 
+typealias APIError = SwiftAnthropic.APIError
+
 actor AnthropicClient {
     private static let logger = Logger(subsystem: "com.notchassistant.app", category: "AnthropicClient")
     
@@ -27,7 +29,7 @@ actor AnthropicClient {
         )
         
         let parameters = MessageParameter(
-            model: .claude35Haiku,
+            model: .other("claude-3-haiku-20240307"),
             messages: [message],
             maxTokens: maxTokens
         )
@@ -55,13 +57,16 @@ actor AnthropicClient {
             throw error
         } catch let urlError as URLError {
             return try await handleURLError(urlError, parameters: parameters, attempt: attempt)
+        } catch let apiError as APIError {
+            Self.logger.error("Claude API error: \(apiError.displayDescription)")
+            throw PipelineError.suggestionFailed(apiError.displayDescription)
         } catch {
-            let errorString = error.localizedDescription.lowercased()
+            let errorString = String(describing: error).lowercased()
             if errorString.contains("429") || errorString.contains("rate") || errorString.contains("too many") {
                 return try await handleRateLimitError(parameters: parameters, attempt: attempt)
             }
             Self.logger.error("Claude API error: \(error.localizedDescription)")
-            throw PipelineError.suggestionFailed(error.localizedDescription)
+            throw PipelineError.suggestionFailed(String(describing: error))
         }
     }
     
@@ -100,7 +105,7 @@ actor AnthropicClient {
                     )
                     
                     let parameters = MessageParameter(
-                        model: .claude35Haiku,
+                        model: .other("claude-3-haiku-20240307"),
                         messages: [message],
                         maxTokens: maxTokens
                     )
