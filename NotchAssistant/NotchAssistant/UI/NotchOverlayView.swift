@@ -3,21 +3,39 @@ import SwiftUI
 struct NotchOverlayView: View {
     @Bindable var viewModel: NotchViewModel
     
+    private let contourRadius: CGFloat = 14
+    private let cornerRadius: CGFloat = 22
+    
     var body: some View {
-        ZStack {
-            Color.black
+        ZStack(alignment: .top) {
+            ZStack {
+                Color.black
+                
+                if viewModel.showOnboarding {
+                    OnboardingView(viewModel: viewModel)
+                } else if viewModel.isLoadingModel {
+                    ModelLoadingView(progress: viewModel.modelDownloadProgress)
+                } else if viewModel.isExpanded {
+                    ExpandedContentView(viewModel: viewModel)
+                } else {
+                    CollapsedContentView(viewModel: viewModel)
+                }
+            }
+            .clipShape(NotchContourShape(cornerRadius: cornerRadius, contourRadius: contourRadius))
+            .padding(.top, contourRadius)
             
-            if viewModel.showOnboarding {
-                OnboardingView(viewModel: viewModel)
-            } else if viewModel.isLoadingModel {
-                ModelLoadingView(progress: viewModel.modelDownloadProgress)
-            } else if viewModel.isExpanded {
-                ExpandedContentView(viewModel: viewModel)
-            } else {
-                CollapsedContentView(viewModel: viewModel)
+            HStack {
+                OutsideCornerShape(radius: contourRadius, corner: .topLeft)
+                    .fill(Color.black)
+                    .frame(width: contourRadius, height: contourRadius)
+                
+                Spacer()
+                
+                OutsideCornerShape(radius: contourRadius, corner: .topRight)
+                    .fill(Color.black)
+                    .frame(width: contourRadius, height: contourRadius)
             }
         }
-        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
         .shadow(color: .black.opacity(0.4), radius: 15, x: 0, y: 8)
         .onAppear {
             viewModel.setup()
@@ -639,11 +657,86 @@ struct VisualEffectView: NSViewRepresentable {
     }
 }
 
+struct NotchContourShape: Shape {
+    let cornerRadius: CGFloat
+    let contourRadius: CGFloat
+    
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        
+        path.move(to: CGPoint(x: 0, y: contourRadius))
+        
+        path.addQuadCurve(
+            to: CGPoint(x: contourRadius, y: 0),
+            control: CGPoint(x: 0, y: 0)
+        )
+        
+        path.addLine(to: CGPoint(x: rect.width - contourRadius, y: 0))
+        
+        path.addQuadCurve(
+            to: CGPoint(x: rect.width, y: contourRadius),
+            control: CGPoint(x: rect.width, y: 0)
+        )
+        
+        path.addLine(to: CGPoint(x: rect.width, y: rect.height - cornerRadius))
+        
+        path.addQuadCurve(
+            to: CGPoint(x: rect.width - cornerRadius, y: rect.height),
+            control: CGPoint(x: rect.width, y: rect.height)
+        )
+        
+        path.addLine(to: CGPoint(x: cornerRadius, y: rect.height))
+        
+        path.addQuadCurve(
+            to: CGPoint(x: 0, y: rect.height - cornerRadius),
+            control: CGPoint(x: 0, y: rect.height)
+        )
+        
+        path.closeSubpath()
+        return path
+    }
+}
+
+struct OutsideCornerShape: Shape {
+    let radius: CGFloat
+    let corner: Corner
+    
+    enum Corner {
+        case topLeft, topRight
+    }
+    
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        
+        switch corner {
+        case .topLeft:
+            path.move(to: CGPoint(x: 0, y: 0))
+            path.addLine(to: CGPoint(x: radius, y: 0))
+            path.addQuadCurve(
+                to: CGPoint(x: 0, y: radius),
+                control: CGPoint(x: 0, y: 0)
+            )
+            path.addLine(to: CGPoint(x: 0, y: 0))
+        case .topRight:
+            path.move(to: CGPoint(x: rect.width, y: 0))
+            path.addLine(to: CGPoint(x: rect.width - radius, y: 0))
+            path.addQuadCurve(
+                to: CGPoint(x: rect.width, y: radius),
+                control: CGPoint(x: rect.width, y: 0)
+            )
+            path.addLine(to: CGPoint(x: rect.width, y: 0))
+        }
+        
+        path.closeSubpath()
+        return path
+    }
+}
+
 #Preview("Collapsed") {
     let viewModel = NotchViewModel()
     viewModel.state = .listening
     return NotchOverlayView(viewModel: viewModel)
-        .frame(width: 700, height: 140)
+        .frame(width: 700, height: 154)
 }
 
 #Preview("Expanded") {
@@ -651,5 +744,5 @@ struct VisualEffectView: NSViewRepresentable {
     viewModel.loadMockData()
     viewModel.isExpanded = true
     return NotchOverlayView(viewModel: viewModel)
-        .frame(width: 700, height: 460)
+        .frame(width: 700, height: 474)
 }

@@ -17,6 +17,7 @@ final class NotchWindowController {
     private var panel: ClickablePanel!
     private let viewModel: NotchViewModel
     private var isExpanded = false
+    private let contourRadius: CGFloat = 14
     
     var hasNotch: Bool {
         guard let screen = NSScreen.main else { return false }
@@ -104,14 +105,14 @@ final class NotchWindowController {
         let screenFrame = screen.frame
         
         let width: CGFloat = 700
-        let height: CGFloat = 140
+        let contentHeight: CGFloat = 140
+        let height = contentHeight + contourRadius
         
         let x = screenFrame.midX - width / 2
         let y: CGFloat
         
         if hasNotch {
-            let safeTop = screen.safeAreaInsets.top
-            y = screenFrame.maxY - safeTop - height
+            y = screenFrame.maxY - height
         } else {
             y = screenFrame.maxY - 40 - height
         }
@@ -124,14 +125,14 @@ final class NotchWindowController {
         let screenFrame = screen.frame
         
         let width: CGFloat = 700
-        let height: CGFloat = 460
+        let contentHeight: CGFloat = 460
+        let height = contentHeight + contourRadius
         
         let x = screenFrame.midX - width / 2
         let y: CGFloat
         
         if hasNotch {
-            let safeTop = screen.safeAreaInsets.top
-            y = screenFrame.maxY - safeTop - height
+            y = screenFrame.maxY - height
         } else {
             y = screenFrame.maxY - 40 - height
         }
