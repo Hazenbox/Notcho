@@ -1,10 +1,5 @@
 import Foundation
 
-protocol AudioCapturing: Sendable {
-    func startCapture() async throws -> AsyncStream<AudioChunk>
-    func stopCapture() async
-}
-
 protocol Transcribing: Sendable {
     func transcribe(_ audioChunk: AudioChunk) async throws -> TranscriptChunk
     func downloadModelIfNeeded(progress: @escaping @Sendable (Double) -> Void) async throws
@@ -32,11 +27,8 @@ final class DependencyContainer {
     
     private init() {}
     
-    // Will be populated as we implement each component
-    // For Phase 1, these are placeholders
-    
     func makeAudioCapture() -> any AudioCapturing {
-        fatalError("Audio capture not yet implemented")
+        return AudioCaptureManager()
     }
     
     func makeTranscriber() -> any Transcribing {

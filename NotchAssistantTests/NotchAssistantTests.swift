@@ -105,3 +105,47 @@ struct AccessibilityIdentifiersTests {
         #expect(identifiers.count == uniqueIdentifiers.count)
     }
 }
+
+@Suite("Audio Buffer Accumulator Tests")
+struct AudioBufferAccumulatorTests {
+    @Test("Accumulator emits chunks at correct size")
+    func testChunkEmission() async {
+        let accumulator = AudioBufferAccumulator(chunkDurationSeconds: 0.1, sampleRate: 16000.0)
+        var emittedChunks: [Data] = []
+        
+        accumulator.setChunkHandler { data in
+            emittedChunks.append(data)
+        }
+        
+        let chunkSize = Int(0.1 * 16000.0) * 2
+        let testData = Data(repeating: 0, count: chunkSize * 3)
+        
+        accumulator.append(testData)
+        
+        #expect(emittedChunks.count == 3)
+    }
+    
+    @Test("Flush returns remaining data")
+    func testFlush() {
+        let accumulator = AudioBufferAccumulator(chunkDurationSeconds: 1.0, sampleRate: 16000.0)
+        
+        let smallData = Data(repeating: 0, count: 100)
+        accumulator.append(smallData)
+        
+        let flushed = accumulator.flush()
+        #expect(flushed?.count == 100)
+    }
+    
+    @Test("Reset clears buffer")
+    func testReset() {
+        let accumulator = AudioBufferAccumulator(chunkDurationSeconds: 1.0, sampleRate: 16000.0)
+        
+        let smallData = Data(repeating: 0, count: 100)
+        accumulator.append(smallData)
+        
+        accumulator.reset()
+        
+        let flushed = accumulator.flush()
+        #expect(flushed == nil)
+    }
+}
