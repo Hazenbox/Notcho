@@ -1,9 +1,5 @@
 import Foundation
 
-protocol SuggestionGenerating: Sendable {
-    func generate(context: MeetingContext) async throws -> SuggestionResult
-}
-
 protocol MeetingDetecting: Sendable {
     func detectActiveMeeting() async -> Bool
     var isMeetingActive: Bool { get async }
@@ -24,7 +20,7 @@ final class DependencyContainer {
     }
     
     func makeSuggestionGenerator() -> any SuggestionGenerating {
-        fatalError("Suggestion generator not yet implemented")
+        return SuggestionGenerator()
     }
     
     func makeMeetingDetector() -> any MeetingDetecting {
