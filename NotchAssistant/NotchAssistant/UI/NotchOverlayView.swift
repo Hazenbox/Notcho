@@ -383,6 +383,7 @@ struct InsightCardView: View {
 
 struct FooterView: View {
     @Bindable var viewModel: NotchViewModel
+    @State private var isDemoRunning = false
     
     var body: some View {
         HStack {
@@ -402,6 +403,34 @@ struct FooterView: View {
             .foregroundStyle(viewModel.isRunning ? .red : .green)
             .accessibilityLabel(viewModel.isRunning ? String(localized: "Stop listening") : String(localized: "Start listening"))
             .accessibilityIdentifier(viewModel.isRunning ? AccessibilityIdentifiers.stopButton : AccessibilityIdentifiers.startButton)
+            
+            Spacer()
+            
+            Button(action: {
+                isDemoRunning = true
+                Task {
+                    await viewModel.runDemoSimulation()
+                    isDemoRunning = false
+                }
+            }) {
+                HStack(spacing: 4) {
+                    if isDemoRunning {
+                        ProgressView()
+                            .scaleEffect(0.6)
+                            .frame(width: 11, height: 11)
+                    } else {
+                        Image(systemName: "play.circle")
+                            .font(.system(size: 11))
+                    }
+                    Text("Demo")
+                        .font(.system(.caption, weight: .medium))
+                }
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.blue)
+            .disabled(isDemoRunning)
+            .accessibilityLabel("Run demo simulation")
+            .help("Simulates: 'What is design thinking?'")
             
             Spacer()
             

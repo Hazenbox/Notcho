@@ -81,6 +81,63 @@ final class NotchViewModel {
         state = .listening
     }
     
+    func runDemoSimulation() async {
+        state = .processing
+        currentTranscript = "What is design thinking?"
+        currentTopic = "Design Thinking"
+        isRunning = true
+        
+        guard let apiKey = KeychainManager.loadString(.anthropicAPIKey) else {
+            state = .error("API key not found. Please add your Claude API key in Settings.")
+            isRunning = false
+            return
+        }
+        
+        let client = AnthropicClient(apiKey: apiKey)
+        
+        let prompt = """
+        You are an AI meeting assistant. Someone in a meeting just asked: "What is design thinking?"
+        
+        Provide a helpful response in JSON format:
+        {
+            "suggestion": "A clear, concise answer to the question (1-2 sentences)",
+            "question": "A follow-up question to deepen the discussion",
+            "insight": "An observation about why this topic might be relevant"
+        }
+        """
+        
+        do {
+            state = .processing
+            let response = try await client.sendMessage(prompt: prompt)
+            
+            if let parsed = JSONResponseParser.parse(response) {
+                suggestion = SuggestionResult(
+                    id: UUID(),
+                    timestamp: Date(),
+                    suggestion: parsed.suggestion,
+                    question: parsed.question,
+                    insight: parsed.insight,
+                    contextSnapshot: currentTranscript
+                )
+                state = .listening
+            } else {
+                suggestion = SuggestionResult(
+                    id: UUID(),
+                    timestamp: Date(),
+                    suggestion: response.prefix(200).description,
+                    question: "Could you elaborate on that?",
+                    insight: "Raw response received",
+                    contextSnapshot: currentTranscript
+                )
+                state = .listening
+            }
+        } catch {
+            state = .error(error.localizedDescription)
+        }
+        
+        isRunning = false
+    }
+    
     func startPipeline() async {
         guard !isRunning else { return }
         
