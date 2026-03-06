@@ -1,9 +1,20 @@
 import AppKit
 import SwiftUI
 
+class ClickablePanel: NSPanel {
+    var onMouseDown: (() -> Void)?
+    
+    override var canBecomeKey: Bool { true }
+    override var acceptsFirstResponder: Bool { true }
+    
+    override func mouseDown(with event: NSEvent) {
+        onMouseDown?()
+    }
+}
+
 @MainActor
 final class NotchWindowController {
-    private var panel: NSPanel!
+    private var panel: ClickablePanel!
     private let viewModel: NotchViewModel
     private var isExpanded = false
     
@@ -20,7 +31,7 @@ final class NotchWindowController {
         let contentView = NotchOverlayView(viewModel: viewModel)
         let hostingView = NSHostingView(rootView: contentView)
         
-        panel = NSPanel(
+        panel = ClickablePanel(
             contentRect: collapsedFrame(),
             styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
@@ -36,22 +47,16 @@ final class NotchWindowController {
         panel.ignoresMouseEvents = false
         panel.contentView = hostingView
         
-        // Setup click handler for expand/collapse
-        setupClickHandler()
+        panel.onMouseDown = { [weak self] in
+            guard let self = self else { return }
+            if !self.isExpanded {
+                self.expand()
+            }
+        }
         
-        // Observe view model for expansion state
         viewModel.onExpandToggle = { [weak self] in
             self?.toggle()
         }
-    }
-    
-    private func setupClickHandler() {
-        let clickGesture = NSClickGestureRecognizer(target: self, action: #selector(handleClick))
-        panel.contentView?.addGestureRecognizer(clickGesture)
-    }
-    
-    @objc private func handleClick() {
-        toggle()
     }
     
     func show() {
