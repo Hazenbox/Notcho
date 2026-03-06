@@ -1,7 +1,6 @@
 import SwiftUI
 
 struct SettingsView: View {
-    @AppStorage("apiKey") private var apiKey: String = ""
     @AppStorage("launchAtLogin") private var launchAtLogin: Bool = false
     @AppStorage("analyticsEnabled") private var analyticsEnabled: Bool = true
     @AppStorage("selectedModel") private var selectedModel: String = "claude-3-haiku-20240307"
@@ -13,7 +12,7 @@ struct SettingsView: View {
                     Label(String(localized: "General"), systemImage: "gear")
                 }
             
-            APISettingsView(apiKey: $apiKey, selectedModel: $selectedModel)
+            APISettingsView(selectedModel: $selectedModel)
                 .tabItem {
                     Label(String(localized: "API"), systemImage: "key")
                 }
@@ -57,9 +56,10 @@ struct GeneralSettingsView: View {
 }
 
 struct APISettingsView: View {
-    @Binding var apiKey: String
     @Binding var selectedModel: String
+    @State private var apiKey: String = ""
     @State private var showingKey = false
+    @State private var hasKey = false
     
     private let models = [
         ("claude-3-haiku-20240307", "Claude 3 Haiku (Fast, Cost-effective)"),
@@ -73,15 +73,32 @@ struct APISettingsView: View {
                     if showingKey {
                         TextField(String(localized: "API Key"), text: $apiKey)
                             .textFieldStyle(.roundedBorder)
+                            .onChange(of: apiKey) { _, newValue in
+                                saveAPIKey(newValue)
+                            }
                     } else {
                         SecureField(String(localized: "API Key"), text: $apiKey)
                             .textFieldStyle(.roundedBorder)
+                            .onChange(of: apiKey) { _, newValue in
+                                saveAPIKey(newValue)
+                            }
                     }
                     
                     Button(action: { showingKey.toggle() }) {
                         Image(systemName: showingKey ? "eye.slash" : "eye")
                     }
                     .buttonStyle(.borderless)
+                    .accessibilityLabel(showingKey ? "Hide API key" : "Show API key")
+                }
+                
+                if hasKey {
+                    HStack {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundStyle(.green)
+                        Text("API key saved securely in Keychain")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 }
                 
                 Picker(String(localized: "Model"), selection: $selectedModel) {
@@ -98,6 +115,25 @@ struct APISettingsView: View {
         }
         .formStyle(.grouped)
         .padding()
+        .onAppear {
+            loadAPIKey()
+        }
+    }
+    
+    private func loadAPIKey() {
+        if let storedKey = KeychainManager.loadString(.anthropicAPIKey) {
+            apiKey = storedKey
+            hasKey = true
+        }
+    }
+    
+    private func saveAPIKey(_ key: String) {
+        guard !key.isEmpty else {
+            hasKey = false
+            return
+        }
+        let success = KeychainManager.save(key, for: .anthropicAPIKey)
+        hasKey = success
     }
 }
 

@@ -94,24 +94,33 @@ struct ExpandedContentView: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Header
             HeaderView(viewModel: viewModel)
             
             Divider()
                 .padding(.horizontal, 16)
             
+            if case .error(let message) = viewModel.state {
+                ErrorBannerView(message: message, onRetry: {
+                    viewModel.clearError()
+                    Task {
+                        await viewModel.startPipeline()
+                    }
+                })
+            }
+            
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    // Transcript section
-                    TranscriptSectionView(transcript: viewModel.currentTranscript)
-                        .focused($focusedElement, equals: .transcript)
+                    if viewModel.currentTranscript.isEmpty {
+                        EmptyTranscriptView(isRunning: viewModel.isRunning)
+                    } else {
+                        TranscriptSectionView(transcript: viewModel.currentTranscript)
+                            .focused($focusedElement, equals: .transcript)
+                    }
                     
-                    // Topic
                     if !viewModel.currentTopic.isEmpty {
                         TopicView(topic: viewModel.currentTopic)
                     }
                     
-                    // Suggestions
                     if let suggestion = viewModel.suggestion {
                         SuggestionCardView(
                             title: String(localized: "SUGGESTION"),
@@ -134,6 +143,8 @@ struct ExpandedContentView: View {
                         )
                         .focused($focusedElement, equals: .insight)
                         .accessibilityIdentifier(AccessibilityIdentifiers.insightCard)
+                    } else if viewModel.isRunning && !viewModel.currentTranscript.isEmpty {
+                        WaitingForSuggestionView()
                     }
                 }
                 .padding(16)
@@ -142,7 +153,6 @@ struct ExpandedContentView: View {
             Divider()
                 .padding(.horizontal, 16)
             
-            // Footer actions
             FooterView(viewModel: viewModel)
         }
         .onKeyPress(.escape) {
@@ -165,6 +175,80 @@ struct ExpandedContentView: View {
         case .copyAll: focusedElement = .close
         case .close, .none: focusedElement = .transcript
         }
+    }
+}
+
+struct ErrorBannerView: View {
+    let message: String
+    let onRetry: () -> Void
+    
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(.red)
+            
+            Text(message)
+                .font(.caption)
+                .foregroundStyle(.primary)
+                .lineLimit(2)
+            
+            Spacer()
+            
+            Button("Retry", action: onRetry)
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+        }
+        .padding(12)
+        .background(Color.red.opacity(0.1))
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .padding(.horizontal, 16)
+        .padding(.top, 8)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Error: \(message)")
+        .accessibilityHint("Tap retry to try again")
+    }
+}
+
+struct EmptyTranscriptView: View {
+    let isRunning: Bool
+    
+    var body: some View {
+        VStack(spacing: 8) {
+            Image(systemName: isRunning ? "waveform" : "mic.slash")
+                .font(.system(size: 24))
+                .foregroundStyle(.secondary)
+            
+            Text(isRunning ? "Listening..." : "Not listening")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            
+            if !isRunning {
+                Text("Click Start to begin")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 20)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(isRunning ? "Listening for speech" : "Not listening. Click start to begin.")
+    }
+}
+
+struct WaitingForSuggestionView: View {
+    var body: some View {
+        HStack(spacing: 8) {
+            ProgressView()
+                .scaleEffect(0.7)
+            
+            Text("Generating suggestions...")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(12)
+        .background(Color.primary.opacity(0.03))
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 }
 

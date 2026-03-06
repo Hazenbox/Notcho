@@ -34,8 +34,11 @@ actor AudioCaptureManager: AudioCapturing {
         let rawStream = try await microphoneCapture.startCapture()
         
         return AsyncStream { continuation in
-            Task {
+            let task = Task {
                 for await pcmData in rawStream {
+                    if Task.isCancelled {
+                        break
+                    }
                     let chunk = AudioChunk(
                         id: UUID(),
                         timestamp: Date(),
@@ -47,6 +50,15 @@ actor AudioCaptureManager: AudioCapturing {
                 }
                 continuation.finish()
             }
+            
+            self.captureTask = task
+            
+            continuation.onTermination = { [weak self] _ in
+                task.cancel()
+                Task {
+                    await self?.stopCapture()
+                }
+            }
         }
     }
     
@@ -55,9 +67,9 @@ actor AudioCaptureManager: AudioCapturing {
         
         Self.logger.info("Stopping audio capture")
         
-        await microphoneCapture.stopCapture()
         captureTask?.cancel()
         captureTask = nil
+        await microphoneCapture.stopCapture()
         isCapturing = false
     }
 }

@@ -41,11 +41,58 @@ enum JSONResponseParser {
             cleaned = String(cleaned[..<codeBlockEnd.lowerBound])
         }
         
+        if let extracted = extractBalancedJSON(from: cleaned) {
+            return extracted
+        }
+        
         if let jsonStart = cleaned.firstIndex(of: "{"),
            let jsonEnd = cleaned.lastIndex(of: "}") {
             cleaned = String(cleaned[jsonStart...jsonEnd])
         }
         
         return cleaned.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+    
+    private static func extractBalancedJSON(from text: String) -> String? {
+        var depth = 0
+        var startIndex: String.Index?
+        var inString = false
+        var escaped = false
+        
+        for (offset, char) in text.enumerated() {
+            if escaped {
+                escaped = false
+                continue
+            }
+            
+            if char == "\\" && inString {
+                escaped = true
+                continue
+            }
+            
+            if char == "\"" {
+                inString.toggle()
+                continue
+            }
+            
+            if inString {
+                continue
+            }
+            
+            if char == "{" {
+                if depth == 0 {
+                    startIndex = text.index(text.startIndex, offsetBy: offset)
+                }
+                depth += 1
+            } else if char == "}" {
+                depth -= 1
+                if depth == 0, let start = startIndex {
+                    let end = text.index(text.startIndex, offsetBy: offset + 1)
+                    return String(text[start..<end])
+                }
+            }
+        }
+        
+        return nil
     }
 }

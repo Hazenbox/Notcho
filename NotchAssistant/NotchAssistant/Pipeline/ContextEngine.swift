@@ -121,4 +121,8 @@ actor ContextEngine: ContextAnalyzing {
             .map { $0.text }
             .joined(separator: " ")
     }
+    
+    func getCurrentTopic() -> String? {
+        currentTopic
+    }
 }

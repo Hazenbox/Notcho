@@ -21,6 +21,7 @@ actor PipelineCoordinator {
     private var transcriptHandler: (@Sendable (TranscriptChunk) -> Void)?
     private var suggestionHandler: (@Sendable (SuggestionResult) -> Void)?
     private var modelProgressHandler: (@Sendable (Double) -> Void)?
+    private var topicHandler: (@Sendable (String) -> Void)?
     
     func setStateHandler(_ handler: @escaping @Sendable (PipelineState) -> Void) {
         stateUpdateHandler = handler
@@ -36,6 +37,10 @@ actor PipelineCoordinator {
     
     func setModelProgressHandler(_ handler: @escaping @Sendable (Double) -> Void) {
         modelProgressHandler = handler
+    }
+    
+    func setTopicHandler(_ handler: @escaping @Sendable (String) -> Void) {
+        topicHandler = handler
     }
     
     init(
@@ -109,6 +114,10 @@ actor PipelineCoordinator {
                 await contextEngine.addTranscript(transcript)
                 transcriptHandler?(transcript)
                 Self.logger.debug("Processed transcript: \(transcript.text.prefix(50))...")
+                
+                if let topic = await contextEngine.getCurrentTopic() {
+                    topicHandler?(topic)
+                }
             }
             
             updateState(.listening)

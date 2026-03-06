@@ -133,6 +133,10 @@ struct OnboardingView: View {
             viewModel.saveAPIKey(apiKey)
         }
         viewModel.showOnboarding = false
+        
+        Task {
+            await viewModel.startPipeline()
+        }
     }
 }
 

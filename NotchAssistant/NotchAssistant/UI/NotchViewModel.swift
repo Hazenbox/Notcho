@@ -45,9 +45,21 @@ final class NotchViewModel {
                     self?.isLoadingModel = progress < 1.0
                 }
             }
+            
+            await pipeline?.setTopicHandler { [weak self] topic in
+                Task { @MainActor in
+                    self?.currentTopic = topic
+                }
+            }
         }
         
         checkOnboardingNeeded()
+    }
+    
+    func clearError() {
+        if case .error = state {
+            state = .idle
+        }
     }
     
     private func checkOnboardingNeeded() {

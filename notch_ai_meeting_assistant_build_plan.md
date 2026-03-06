@@ -1462,7 +1462,7 @@ Audio:         Mic + System → Mic only → Pause + notify
 Enable in Xcode: Signing & Capabilities → Hardened Runtime → Allow Microphone Access
 
 ### 18.4 Code Signing & Notarization
-
+go
 ```bash
 codesign --force --deep --sign "Developer ID Application: Your Name (TEAMID)" \
     --entitlements NotchAssistant.entitlements \

@@ -66,6 +66,7 @@ enum PipelineError: Error, LocalizedError {
     case modelDownloadFailed(String)
     case apiKeyMissing
     case networkError(String)
+    case rateLimited(String)
     
     var errorDescription: String? {
         switch self {
@@ -77,6 +78,16 @@ enum PipelineError: Error, LocalizedError {
         case .modelDownloadFailed(let msg): return "Model download failed: \(msg)"
         case .apiKeyMissing: return "Claude API key is missing"
         case .networkError(let msg): return "Network error: \(msg)"
+        case .rateLimited(let msg): return "Rate limited: \(msg)"
+        }
+    }
+    
+    var isRetryable: Bool {
+        switch self {
+        case .networkError, .rateLimited:
+            return true
+        default:
+            return false
         }
     }
 }

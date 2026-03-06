@@ -40,6 +40,16 @@ actor InterimTranscriber {
         
         return await withCheckedContinuation { continuation in
             var lastResult: String?
+            var hasResumed = false
+            let resumeLock = NSLock()
+            
+            func safeResume(with result: String?) {
+                resumeLock.lock()
+                defer { resumeLock.unlock() }
+                guard !hasResumed else { return }
+                hasResumed = true
+                continuation.resume(returning: result)
+            }
             
             recognitionTask = speechRecognizer.recognitionTask(with: request) { result, error in
                 if let error = error {
@@ -50,7 +60,7 @@ actor InterimTranscriber {
                     lastResult = result.bestTranscription.formattedString
                     
                     if result.isFinal {
-                        continuation.resume(returning: lastResult)
+                        safeResume(with: lastResult)
                     }
                 }
             }
@@ -59,7 +69,7 @@ actor InterimTranscriber {
                 try? await Task.sleep(for: .seconds(3))
                 if !Task.isCancelled {
                     self.stopRecognition()
-                    continuation.resume(returning: lastResult)
+                    safeResume(with: lastResult)
                 }
             }
         }
