@@ -12,6 +12,8 @@ final class NotchViewModel {
     var onExpandToggle: (() -> Void)?
     var isRunning = false
     var showOnboarding = false
+    var isLoadingModel = false
+    var modelDownloadProgress: Double = 0
     
     private var pipeline: PipelineCoordinator?
     
@@ -34,6 +36,13 @@ final class NotchViewModel {
             await pipeline?.setSuggestionHandler { [weak self] suggestion in
                 Task { @MainActor in
                     self?.suggestion = suggestion
+                }
+            }
+            
+            await pipeline?.setModelProgressHandler { [weak self] progress in
+                Task { @MainActor in
+                    self?.modelDownloadProgress = progress
+                    self?.isLoadingModel = progress < 1.0
                 }
             }
         }
@@ -63,10 +72,15 @@ final class NotchViewModel {
     func startPipeline() async {
         guard !isRunning else { return }
         
+        isLoadingModel = true
+        modelDownloadProgress = 0
+        
         do {
             try await pipeline?.start()
             isRunning = true
+            isLoadingModel = false
         } catch {
+            isLoadingModel = false
             state = .error(error.localizedDescription)
         }
     }

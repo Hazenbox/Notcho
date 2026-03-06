@@ -20,6 +20,7 @@ actor PipelineCoordinator {
     private var stateUpdateHandler: (@Sendable (PipelineState) -> Void)?
     private var transcriptHandler: (@Sendable (TranscriptChunk) -> Void)?
     private var suggestionHandler: (@Sendable (SuggestionResult) -> Void)?
+    private var modelProgressHandler: (@Sendable (Double) -> Void)?
     
     func setStateHandler(_ handler: @escaping @Sendable (PipelineState) -> Void) {
         stateUpdateHandler = handler
@@ -31,6 +32,10 @@ actor PipelineCoordinator {
     
     func setSuggestionHandler(_ handler: @escaping @Sendable (SuggestionResult) -> Void) {
         suggestionHandler = handler
+    }
+    
+    func setModelProgressHandler(_ handler: @escaping @Sendable (Double) -> Void) {
+        modelProgressHandler = handler
     }
     
     init(
@@ -54,6 +59,16 @@ actor PipelineCoordinator {
         }
         
         Self.logger.info("Starting pipeline")
+        updateState(.processing)
+        
+        Self.logger.info("Downloading/initializing WhisperKit model...")
+        let progressHandler = modelProgressHandler
+        try await transcriber.downloadModelIfNeeded { progress in
+            Self.logger.debug("Model download progress: \(Int(progress * 100))%")
+            progressHandler?(progress)
+        }
+        Self.logger.info("WhisperKit model ready")
+        
         updateState(.listening)
         
         let audioStream = try await audioCapture.startCapture()
@@ -101,9 +116,6 @@ actor PipelineCoordinator {
         } catch {
             Self.logger.error("Transcription error: \(error.localizedDescription)")
             updateState(.error(error.localizedDescription))
-            
-            try? await Task.sleep(for: .seconds(1))
-            updateState(.listening)
         }
     }
     

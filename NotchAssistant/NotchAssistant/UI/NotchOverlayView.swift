@@ -5,11 +5,12 @@ struct NotchOverlayView: View {
     
     var body: some View {
         ZStack {
-            // Vibrancy background
             VisualEffectView(material: .sidebar, blendingMode: .behindWindow)
             
             if viewModel.showOnboarding {
                 OnboardingView(viewModel: viewModel)
+            } else if viewModel.isLoadingModel {
+                ModelLoadingView(progress: viewModel.modelDownloadProgress)
             } else if viewModel.isExpanded {
                 ExpandedContentView(viewModel: viewModel)
             } else {
@@ -20,8 +21,36 @@ struct NotchOverlayView: View {
         .shadow(color: .black.opacity(0.3), radius: 20, x: 0, y: 10)
         .onAppear {
             viewModel.setup()
-            viewModel.loadMockData()
         }
+    }
+}
+
+struct ModelLoadingView: View {
+    let progress: Double
+    
+    var body: some View {
+        VStack(spacing: 12) {
+            ProgressView()
+                .scaleEffect(0.8)
+            
+            Text("Loading Speech Model")
+                .font(.system(.caption, weight: .medium))
+                .foregroundStyle(.primary)
+            
+            if progress > 0 && progress < 1 {
+                ProgressView(value: progress)
+                    .progressViewStyle(.linear)
+                    .frame(width: 120)
+                
+                Text("\(Int(progress * 100))%")
+                    .font(.system(.caption2, design: .monospaced))
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(20)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(String(localized: "Loading speech model"))
+        .accessibilityValue(progress > 0 ? "\(Int(progress * 100)) percent" : "Starting")
     }
 }
 

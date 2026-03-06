@@ -10,7 +10,7 @@ final class AudioBufferAccumulator: @unchecked Sendable {
     
     init(chunkDurationSeconds: Double = 2.0, sampleRate: Double = 16000.0) {
         self.sampleRate = sampleRate
-        self.chunkSize = Int(chunkDurationSeconds * sampleRate) * 2
+        self.chunkSize = Int(chunkDurationSeconds * sampleRate) * MemoryLayout<Float>.size
     }
     
     func setChunkHandler(_ handler: @escaping @Sendable (Data) -> Void) {
