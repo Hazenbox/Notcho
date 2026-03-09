@@ -85,19 +85,29 @@ struct NotchOverlayView: View {
     }
     
     var body: some View {
-        ZStack {
+        ZStack(alignment: .top) {
             Color.black
             
             if viewModel.showOnboarding {
                 OnboardingView(viewModel: viewModel)
+                    .transition(.opacity)
             } else if viewModel.isLoadingModel {
                 ModelLoadingView(progress: viewModel.modelDownloadProgress)
+                    .transition(.opacity)
             } else if viewModel.isExpanded {
                 ExpandedContentView(viewModel: viewModel, notchWidth: notchWidth, notchHeight: notchHeight)
+                    .transition(.asymmetric(
+                        insertion: .opacity.combined(with: .move(edge: .top)),
+                        removal: .opacity
+                    ))
             } else {
                 CollapsedContentView(viewModel: viewModel, notchWidth: notchWidth, notchHeight: notchHeight)
+                    .transition(.opacity)
             }
         }
+        .animation(.spring(response: 0.4, dampingFraction: 0.85), value: viewModel.isExpanded)
+        .animation(.easeInOut(duration: 0.25), value: viewModel.showOnboarding)
+        .animation(.easeInOut(duration: 0.25), value: viewModel.isLoadingModel)
         .clipShape(NotchCutoutShape(notchWidth: notchWidth, notchHeight: notchHeight))
         .shadow(color: .black.opacity(0.5), radius: 20, x: 0, y: 10)
         .onAppear {
@@ -144,9 +154,9 @@ struct NotchCloseButton: View {
     var body: some View {
         Button(action: action) {
             Image(systemName: "xmark")
-                .font(.system(size: 11, weight: .bold))
+                .font(.system(size: 10, weight: .bold))
                 .foregroundStyle(isHovering ? .white : .white.opacity(0.5))
-                .frame(width: 24, height: 24)
+                .frame(width: 22, height: 22)
                 .background(isHovering ? Color.white.opacity(0.2) : Color.clear)
                 .clipShape(Circle())
         }
@@ -160,7 +170,32 @@ struct NotchCloseButton: View {
     }
 }
 
-struct CollapsedContentView: View {
+struct NotchChevronButton: View {
+    let isExpanded: Bool
+    let action: () -> Void
+    @State private var isHovering = false
+    
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: "chevron.down")
+                .font(.system(size: 10, weight: .bold))
+                .foregroundStyle(isHovering ? .white : .white.opacity(0.5))
+                .frame(width: 22, height: 22)
+                .background(isHovering ? Color.white.opacity(0.2) : Color.clear)
+                .clipShape(Circle())
+                .rotationEffect(.degrees(isExpanded ? 180 : 0))
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering in
+            withAnimation(.easeInOut(duration: 0.15)) {
+                isHovering = hovering
+            }
+        }
+        .accessibilityLabel(isExpanded ? String(localized: "Collapse panel") : String(localized: "Expand panel"))
+    }
+}
+
+struct NotchHeaderView: View {
     @Bindable var viewModel: NotchViewModel
     let notchWidth: CGFloat
     let notchHeight: CGFloat
@@ -179,14 +214,31 @@ struct CollapsedContentView: View {
             
             Spacer()
             
-            NotchCloseButton(action: { viewModel.onHidePanel?() })
-                .padding(.trailing, 12)
+            HStack(spacing: 4) {
+                NotchChevronButton(isExpanded: viewModel.isExpanded) {
+                    withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
+                        viewModel.onExpandToggle?()
+                    }
+                }
+                NotchCloseButton(action: { viewModel.onHidePanel?() })
+            }
+            .padding(.trailing, 12)
         }
         .frame(height: notchHeight)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(String(localized: "Notch Assistant"))
-        .accessibilityHint(String(localized: "Click to expand"))
-        .accessibilityIdentifier(AccessibilityIdentifiers.statusIndicator)
+    }
+}
+
+struct CollapsedContentView: View {
+    @Bindable var viewModel: NotchViewModel
+    let notchWidth: CGFloat
+    let notchHeight: CGFloat
+    
+    var body: some View {
+        NotchHeaderView(viewModel: viewModel, notchWidth: notchWidth, notchHeight: notchHeight)
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel(String(localized: "Notch Assistant"))
+            .accessibilityHint(String(localized: "Click to expand"))
+            .accessibilityIdentifier(AccessibilityIdentifiers.statusIndicator)
     }
 }
 
@@ -202,24 +254,8 @@ struct ExpandedContentView: View {
     
     var body: some View {
         VStack(spacing: 0) {
-            HStack(spacing: 0) {
-                Text("Assistant")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.7))
-                    .padding(.leading, 16)
-                
-                Spacer()
-                
-                Spacer()
-                    .frame(width: notchWidth + 16)
-                
-                Spacer()
-                
-                NotchCloseButton(action: { viewModel.onHidePanel?() })
-                    .accessibilityIdentifier(AccessibilityIdentifiers.closeButton)
-                    .padding(.trailing, 12)
-            }
-            .frame(height: notchHeight)
+            NotchHeaderView(viewModel: viewModel, notchWidth: notchWidth, notchHeight: notchHeight)
+                .accessibilityIdentifier(AccessibilityIdentifiers.closeButton)
             
             Rectangle()
                 .fill(Color.white.opacity(0.1))
@@ -237,11 +273,11 @@ struct ExpandedContentView: View {
             }
             
             ScrollView {
-                VStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: 10) {
                     if viewModel.currentTranscript.isEmpty {
-                        EmptyTranscriptView(isRunning: viewModel.isRunning)
+                        CompactEmptyTranscriptView(isRunning: viewModel.isRunning)
                     } else {
-                        TranscriptSectionView(transcript: viewModel.currentTranscript)
+                        CompactTranscriptView(transcript: viewModel.currentTranscript)
                             .focused($focusedElement, equals: .transcript)
                     }
                     
@@ -250,32 +286,21 @@ struct ExpandedContentView: View {
                     }
                     
                     if let suggestion = viewModel.suggestion {
-                        SuggestionCardView(
-                            title: String(localized: "SUGGESTION"),
-                            content: suggestion.suggestion,
-                            onCopy: { viewModel.copyToClipboard(suggestion.suggestion) }
+                        CompactSuggestionView(
+                            suggestion: suggestion.suggestion,
+                            question: suggestion.question,
+                            insight: suggestion.insight,
+                            onCopySuggestion: { viewModel.copyToClipboard(suggestion.suggestion) },
+                            onCopyQuestion: { viewModel.copyToClipboard(suggestion.question) }
                         )
                         .focused($focusedElement, equals: .suggestion)
                         .accessibilityIdentifier(AccessibilityIdentifiers.suggestionCard)
-                        
-                        SuggestionCardView(
-                            title: String(localized: "QUESTION"),
-                            content: suggestion.question,
-                            onCopy: { viewModel.copyToClipboard(suggestion.question) }
-                        )
-                        .focused($focusedElement, equals: .question)
-                        .accessibilityIdentifier(AccessibilityIdentifiers.questionCard)
-                        
-                        InsightCardView(
-                            content: suggestion.insight
-                        )
-                        .focused($focusedElement, equals: .insight)
-                        .accessibilityIdentifier(AccessibilityIdentifiers.insightCard)
                     } else if viewModel.isRunning && !viewModel.currentTranscript.isEmpty {
                         WaitingForSuggestionView()
                     }
                 }
-                .padding(16)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
             }
             
             Rectangle()
@@ -283,7 +308,7 @@ struct ExpandedContentView: View {
                 .frame(height: 1)
                 .padding(.horizontal, 16)
             
-            FooterView(viewModel: viewModel)
+            CompactFooterView(viewModel: viewModel)
         }
         .onKeyPress(.escape) {
             viewModel.onExpandToggle?()
@@ -305,6 +330,203 @@ struct ExpandedContentView: View {
         case .copyAll: focusedElement = .close
         case .close, .none: focusedElement = .transcript
         }
+    }
+}
+
+struct CompactEmptyTranscriptView: View {
+    let isRunning: Bool
+    
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: isRunning ? "waveform" : "mic.slash")
+                .font(.system(size: 16))
+                .foregroundStyle(.white.opacity(0.4))
+            
+            Text(isRunning ? "Listening..." : "Not listening")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(.white.opacity(0.6))
+            
+            Spacer()
+            
+            if !isRunning {
+                Text("Click Start")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.white.opacity(0.4))
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(Color(white: 0.11))
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+    }
+}
+
+struct CompactTranscriptView: View {
+    let transcript: String
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("TRANSCRIPT")
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.5))
+            
+            Text(transcript)
+                .font(.system(size: 11, design: .monospaced))
+                .foregroundStyle(.white.opacity(0.8))
+                .lineLimit(2)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(10)
+        .background(Color(white: 0.11))
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .accessibilityIdentifier(AccessibilityIdentifiers.transcriptView)
+    }
+}
+
+struct CompactSuggestionView: View {
+    let suggestion: String
+    let question: String
+    let insight: String
+    let onCopySuggestion: () -> Void
+    let onCopyQuestion: () -> Void
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .top, spacing: 8) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("SUGGESTION")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.5))
+                    Text(suggestion)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.white)
+                        .lineLimit(2)
+                }
+                
+                Spacer()
+                
+                Button(action: onCopySuggestion) {
+                    Image(systemName: "doc.on.doc")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.white.opacity(0.5))
+                }
+                .buttonStyle(.plain)
+            }
+            
+            Rectangle()
+                .fill(Color.white.opacity(0.08))
+                .frame(height: 1)
+            
+            HStack(alignment: .top, spacing: 8) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("QUESTION")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.5))
+                    Text(question)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.white.opacity(0.9))
+                        .lineLimit(2)
+                }
+                
+                Spacer()
+                
+                Button(action: onCopyQuestion) {
+                    Image(systemName: "doc.on.doc")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.white.opacity(0.5))
+                }
+                .buttonStyle(.plain)
+            }
+            
+            if !insight.isEmpty {
+                Text(insight)
+                    .font(.system(size: 10))
+                    .foregroundStyle(.white.opacity(0.5))
+                    .lineLimit(1)
+            }
+        }
+        .padding(10)
+        .background(Color(white: 0.11))
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+    }
+}
+
+struct CompactFooterView: View {
+    @Bindable var viewModel: NotchViewModel
+    @State private var isDemoRunning = false
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            Button(action: {
+                Task {
+                    await viewModel.togglePipeline()
+                }
+            }) {
+                HStack(spacing: 4) {
+                    Image(systemName: viewModel.isRunning ? "stop.fill" : "play.fill")
+                        .font(.system(size: 10))
+                    Text(viewModel.isRunning ? "Stop" : "Start")
+                        .font(.system(size: 11, weight: .medium))
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(viewModel.isRunning ? Color.red.opacity(0.2) : Color.green.opacity(0.2))
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(viewModel.isRunning ? .red : .green)
+            .accessibilityIdentifier(viewModel.isRunning ? AccessibilityIdentifiers.stopButton : AccessibilityIdentifiers.startButton)
+            
+            Spacer()
+            
+            Button(action: {
+                isDemoRunning = true
+                Task {
+                    await viewModel.runDemoSimulation()
+                    isDemoRunning = false
+                }
+            }) {
+                HStack(spacing: 4) {
+                    if isDemoRunning {
+                        ProgressView()
+                            .scaleEffect(0.5)
+                            .frame(width: 10, height: 10)
+                    } else {
+                        Image(systemName: "play.circle")
+                            .font(.system(size: 10))
+                    }
+                    Text("Demo")
+                        .font(.system(size: 11, weight: .medium))
+                }
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.blue)
+            .disabled(isDemoRunning)
+            
+            Button(action: {
+                Task {
+                    await viewModel.requestSuggestion()
+                }
+            }) {
+                Image(systemName: "arrow.clockwise")
+                    .font(.system(size: 11))
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.white.opacity(0.6))
+            .accessibilityLabel(String(localized: "Regenerate"))
+            .accessibilityIdentifier(AccessibilityIdentifiers.regenerateButton)
+            
+            Button(action: { viewModel.copyAllSuggestions() }) {
+                Image(systemName: "doc.on.doc")
+                    .font(.system(size: 11))
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.white.opacity(0.6))
+            .accessibilityLabel(String(localized: "Copy all"))
+            .accessibilityIdentifier(AccessibilityIdentifiers.copyAllButton)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
     }
 }
 
@@ -647,7 +869,7 @@ struct VisualEffectView: NSViewRepresentable {
     let viewModel = NotchViewModel()
     viewModel.state = .listening
     return NotchOverlayView(viewModel: viewModel, notchWidth: 180, notchHeight: 32)
-        .frame(width: 580, height: 55)
+        .frame(width: 580, height: 56)
 }
 
 #Preview("Expanded") {
@@ -655,5 +877,5 @@ struct VisualEffectView: NSViewRepresentable {
     viewModel.loadMockData()
     viewModel.isExpanded = true
     return NotchOverlayView(viewModel: viewModel, notchWidth: 180, notchHeight: 32)
-        .frame(width: 600, height: 460)
+        .frame(width: 580, height: 230)
 }

@@ -20,6 +20,9 @@ final class NotchWindowController {
     private var isExpanded = false
     private var clickOutsideMonitor: Any?
     
+    // Consistent width for smooth vertical-only animation
+    private let panelWidth: CGFloat = 580
+    
     var hasNotch: Bool {
         guard let screen = NSScreen.main else { return false }
         return screen.safeAreaInsets.top > 0
@@ -39,6 +42,14 @@ final class NotchWindowController {
     var notchHeight: CGFloat {
         guard let screen = NSScreen.main else { return 32 }
         return screen.safeAreaInsets.top > 0 ? screen.safeAreaInsets.top : 32
+    }
+    
+    private var collapsedHeight: CGFloat {
+        notchHeight + 24
+    }
+    
+    private var expandedHeight: CGFloat {
+        230
     }
     
     init(viewModel: NotchViewModel) {
@@ -108,15 +119,12 @@ final class NotchWindowController {
     func expand() {
         guard !isExpanded else { return }
         isExpanded = true
+        viewModel.isExpanded = true
         
         NSAnimationContext.runAnimationGroup({ context in
-            context.duration = 0.3
-            context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            context.duration = 0.4
+            context.timingFunction = CAMediaTimingFunction(controlPoints: 0.34, 1.56, 0.64, 1)
             panel.animator().setFrame(expandedFrame(), display: true)
-        }, completionHandler: { [weak self] in
-            Task { @MainActor in
-                self?.viewModel.isExpanded = true
-            }
         })
         
         setupClickOutsideMonitor()
@@ -128,8 +136,8 @@ final class NotchWindowController {
         viewModel.isExpanded = false
         
         NSAnimationContext.runAnimationGroup({ context in
-            context.duration = 0.25
-            context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            context.duration = 0.3
+            context.timingFunction = CAMediaTimingFunction(controlPoints: 0.0, 0.0, 0.2, 1)
             panel.animator().setFrame(collapsedFrame(), display: true)
         })
         
@@ -164,25 +172,19 @@ final class NotchWindowController {
         guard let screen = NSScreen.main else { return .zero }
         let screenFrame = screen.frame
         
-        let width: CGFloat = 580
-        let height: CGFloat = 55
+        let x = screenFrame.midX - panelWidth / 2
+        let y = screenFrame.maxY - collapsedHeight
         
-        let x = screenFrame.midX - width / 2
-        let y = screenFrame.maxY - height
-        
-        return NSRect(x: x, y: y, width: width, height: height)
+        return NSRect(x: x, y: y, width: panelWidth, height: collapsedHeight)
     }
     
     private func expandedFrame() -> NSRect {
         guard let screen = NSScreen.main else { return .zero }
         let screenFrame = screen.frame
         
-        let width: CGFloat = 600
-        let height: CGFloat = 460
+        let x = screenFrame.midX - panelWidth / 2
+        let y = screenFrame.maxY - expandedHeight
         
-        let x = screenFrame.midX - width / 2
-        let y = screenFrame.maxY - height
-        
-        return NSRect(x: x, y: y, width: width, height: height)
+        return NSRect(x: x, y: y, width: panelWidth, height: expandedHeight)
     }
 }
