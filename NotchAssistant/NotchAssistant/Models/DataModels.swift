@@ -51,9 +51,7 @@ struct MeetingContext: Sendable {
 struct SuggestionResult: Identifiable, Sendable {
     let id: UUID
     let timestamp: Date
-    let suggestion: String
-    let question: String
-    let insight: String
+    let recommendation: String
     let contextSnapshot: String
 }
 

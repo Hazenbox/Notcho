@@ -19,6 +19,9 @@ let package = Package(
         
         // Analytics - TelemetryDeck
         .package(url: "https://github.com/TelemetryDeck/SwiftClient", from: "2.0.0"),
+        
+        // Notch UI - DynamicNotchKit
+        .package(url: "https://github.com/MrKai77/DynamicNotchKit", from: "0.1.0"),
     ],
     targets: [
         .executableTarget(
@@ -28,6 +31,7 @@ let package = Package(
                 .product(name: "WhisperKit", package: "WhisperKit"),
                 .product(name: "Sentry", package: "sentry-cocoa"),
                 .product(name: "TelemetryDeck", package: "SwiftClient"),
+                .product(name: "DynamicNotchKit", package: "DynamicNotchKit"),
             ],
             path: "NotchAssistant/NotchAssistant",
             exclude: ["Info.plist", "NotchAssistant.entitlements"],

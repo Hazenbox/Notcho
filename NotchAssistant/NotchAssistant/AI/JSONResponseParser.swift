@@ -5,9 +5,7 @@ enum JSONResponseParser {
     private static let logger = Logger(subsystem: "com.notchassistant.app", category: "JSONResponseParser")
     
     struct SuggestionResponse: Codable {
-        let suggestion: String
-        let question: String
-        let insight: String
+        let recommendation: String
     }
     
     static func parse(_ response: String) -> SuggestionResponse? {

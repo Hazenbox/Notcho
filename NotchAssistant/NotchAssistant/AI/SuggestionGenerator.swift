@@ -54,9 +54,7 @@ actor SuggestionGenerator: SuggestionGenerating {
         return SuggestionResult(
             id: UUID(),
             timestamp: Date(),
-            suggestion: parsed.suggestion,
-            question: parsed.question,
-            insight: parsed.insight,
+            recommendation: parsed.recommendation,
             contextSnapshot: contextSnapshot
         )
     }
@@ -70,9 +68,7 @@ actor SuggestionGenerator: SuggestionGenerating {
         return SuggestionResult(
             id: UUID(),
             timestamp: Date(),
-            suggestion: response.prefix(200).description,
-            question: "Could you elaborate on that?",
-            insight: "Unable to parse structured response",
+            recommendation: String(response.prefix(300)),
             contextSnapshot: contextSnapshot
         )
     }

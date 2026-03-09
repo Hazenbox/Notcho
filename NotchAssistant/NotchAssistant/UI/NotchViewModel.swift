@@ -7,7 +7,6 @@ final class NotchViewModel {
     var isExpanded = false
     var state: PipelineState = .idle
     var currentTranscript: String = ""
-    var currentTopic: String = ""
     var suggestion: SuggestionResult?
     var onExpandToggle: (() -> Void)?
     var onHidePanel: (() -> Void)?
@@ -46,12 +45,6 @@ final class NotchViewModel {
                     self?.isLoadingModel = progress < 1.0
                 }
             }
-            
-            await pipeline?.setTopicHandler { [weak self] topic in
-                Task { @MainActor in
-                    self?.currentTopic = topic
-                }
-            }
         }
         
         checkOnboardingNeeded()
@@ -69,14 +62,11 @@ final class NotchViewModel {
     }
     
     func loadMockData() {
-        currentTopic = "Sprint Planning"
         currentTranscript = "...so the rollout plan is to start with two pilot teams and measure adoption over the next four weeks. What do you all think about this approach?"
         suggestion = SuggestionResult(
             id: UUID(),
             timestamp: Date(),
-            suggestion: "We could start with the mobile team — they've shown the most interest in the new design system.",
-            question: "What metric should we use to define adoption success for the pilot?",
-            insight: "The discussion is leaning toward an incremental rollout strategy.",
+            recommendation: "Start with the mobile team - they've shown the most interest and have bandwidth this sprint. Propose a 2-week pilot with clear success metrics before the next planning session.",
             contextSnapshot: currentTranscript
         )
         state = .listening
@@ -85,7 +75,6 @@ final class NotchViewModel {
     func runDemoSimulation() async {
         state = .processing
         currentTranscript = "What is design thinking?"
-        currentTopic = "Design Thinking"
         isRunning = true
         
         guard let apiKey = KeychainManager.loadString(.anthropicAPIKey) else {
@@ -97,14 +86,10 @@ final class NotchViewModel {
         let client = AnthropicClient(apiKey: apiKey)
         
         let prompt = """
-        You are an AI meeting assistant. Someone in a meeting just asked: "What is design thinking?"
-        
-        Provide a helpful response in JSON format:
-        {
-            "suggestion": "A clear, concise answer to the question (1-2 sentences)",
-            "question": "A follow-up question to deepen the discussion",
-            "insight": "An observation about why this topic might be relevant"
-        }
+        You are a staff-level product designer. Someone asked: "What is design thinking?"
+
+        Provide ONE direct recommendation (2-3 sentences). JSON only:
+        {"recommendation": "Your answer here"}
         """
         
         do {
@@ -114,9 +99,7 @@ final class NotchViewModel {
                 suggestion = SuggestionResult(
                     id: UUID(),
                     timestamp: Date(),
-                    suggestion: parsed.suggestion,
-                    question: parsed.question,
-                    insight: parsed.insight,
+                    recommendation: parsed.recommendation,
                     contextSnapshot: currentTranscript
                 )
                 state = .listening
@@ -124,9 +107,7 @@ final class NotchViewModel {
                 suggestion = SuggestionResult(
                     id: UUID(),
                     timestamp: Date(),
-                    suggestion: response.prefix(200).description,
-                    question: "Could you elaborate on that?",
-                    insight: "Raw response received",
+                    recommendation: String(response.prefix(300)),
                     contextSnapshot: currentTranscript
                 )
                 state = .listening
@@ -192,14 +173,7 @@ final class NotchViewModel {
     
     func copyAllSuggestions() {
         guard let suggestion = suggestion else { return }
-        let text = """
-        Suggestion: \(suggestion.suggestion)
-        
-        Question: \(suggestion.question)
-        
-        Insight: \(suggestion.insight)
-        """
-        copyToClipboard(text)
+        copyToClipboard(suggestion.recommendation)
     }
     
     func saveAPIKey(_ key: String) {
