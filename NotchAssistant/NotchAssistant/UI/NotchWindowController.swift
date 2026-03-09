@@ -9,6 +9,7 @@ class ClickablePanel: NSPanel {
     
     override func mouseDown(with event: NSEvent) {
         onMouseDown?()
+        super.mouseDown(with: event)
     }
 }
 
@@ -107,13 +108,16 @@ final class NotchWindowController {
     func expand() {
         guard !isExpanded else { return }
         isExpanded = true
-        viewModel.isExpanded = true
         
-        NSAnimationContext.runAnimationGroup { context in
+        NSAnimationContext.runAnimationGroup({ context in
             context.duration = 0.3
             context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
             panel.animator().setFrame(expandedFrame(), display: true)
-        }
+        }, completionHandler: { [weak self] in
+            Task { @MainActor in
+                self?.viewModel.isExpanded = true
+            }
+        })
         
         setupClickOutsideMonitor()
     }
@@ -123,11 +127,11 @@ final class NotchWindowController {
         isExpanded = false
         viewModel.isExpanded = false
         
-        NSAnimationContext.runAnimationGroup { context in
+        NSAnimationContext.runAnimationGroup({ context in
             context.duration = 0.25
             context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
             panel.animator().setFrame(collapsedFrame(), display: true)
-        }
+        })
         
         removeClickOutsideMonitor()
     }
@@ -160,8 +164,8 @@ final class NotchWindowController {
         guard let screen = NSScreen.main else { return .zero }
         let screenFrame = screen.frame
         
-        let width: CGFloat = 750
-        let height: CGFloat = 130
+        let width: CGFloat = 580
+        let height: CGFloat = 55
         
         let x = screenFrame.midX - width / 2
         let y = screenFrame.maxY - height
@@ -173,7 +177,7 @@ final class NotchWindowController {
         guard let screen = NSScreen.main else { return .zero }
         let screenFrame = screen.frame
         
-        let width: CGFloat = 750
+        let width: CGFloat = 600
         let height: CGFloat = 460
         
         let x = screenFrame.midX - width / 2

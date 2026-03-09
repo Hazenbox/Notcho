@@ -137,106 +137,52 @@ struct ModelLoadingView: View {
     }
 }
 
+struct NotchCloseButton: View {
+    let action: () -> Void
+    @State private var isHovering = false
+    
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: "xmark")
+                .font(.system(size: 11, weight: .bold))
+                .foregroundStyle(isHovering ? .white : .white.opacity(0.5))
+                .frame(width: 24, height: 24)
+                .background(isHovering ? Color.white.opacity(0.2) : Color.clear)
+                .clipShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering in
+            withAnimation(.easeInOut(duration: 0.15)) {
+                isHovering = hovering
+            }
+        }
+        .accessibilityLabel(String(localized: "Close panel"))
+    }
+}
+
 struct CollapsedContentView: View {
     @Bindable var viewModel: NotchViewModel
     let notchWidth: CGFloat
     let notchHeight: CGFloat
     
     var body: some View {
-        VStack(spacing: 0) {
-            HStack(spacing: 0) {
-                HStack(spacing: 8) {
-                    Text("Assistant")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(Color.blue)
-                        .clipShape(Capsule())
-                }
+        HStack(spacing: 0) {
+            Text("Assistant")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(.white.opacity(0.7))
                 .padding(.leading, 16)
-                
-                Spacer()
-                    .frame(width: notchWidth + 16)
-                
-                HStack(spacing: 12) {
-                    Button(action: { viewModel.onHidePanel?() }) {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(.white.opacity(0.7))
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(String(localized: "Close panel"))
-                }
-                .padding(.trailing, 16)
-            }
-            .frame(height: notchHeight)
             
-            HStack(spacing: 12) {
-                HStack(spacing: 10) {
-                    StatusIndicatorView(state: viewModel.state)
-                    
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Meeting Assistant")
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(.white)
-                        
-                        Text(statusText)
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundStyle(.white.opacity(0.6))
-                    }
-                    
-                    Spacer()
-                }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 14)
-                .background(Color(white: 0.11))
-                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                
-                VStack(spacing: 4) {
-                    if viewModel.isRunning {
-                        Image(systemName: "waveform")
-                            .font(.system(size: 20))
-                            .foregroundStyle(.green)
-                    } else {
-                        Image(systemName: "mic.slash")
-                            .font(.system(size: 20))
-                            .foregroundStyle(.white.opacity(0.4))
-                    }
-                    Text(viewModel.isRunning ? "Active" : "Idle")
-                        .font(.system(size: 10, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.6))
-                }
-                .frame(width: 70)
-                .padding(.vertical, 14)
-                .background(Color(white: 0.11))
-                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                .onTapGesture {
-                    viewModel.onExpandToggle?()
-                }
-            }
-            .padding(.horizontal, 16)
-            .padding(.bottom, 16)
-            .padding(.top, 8)
+            Spacer()
+                .frame(width: notchWidth + 16)
+            
+            NotchCloseButton(action: { viewModel.onHidePanel?() })
+                .padding(.trailing, 12)
         }
-        .contentShape(Rectangle())
-        .onTapGesture {
-            viewModel.onExpandToggle?()
-        }
+        .frame(height: notchHeight)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(String(localized: "Notch Assistant"))
-        .accessibilityValue(statusText)
         .accessibilityHint(String(localized: "Click to expand"))
         .accessibilityIdentifier(AccessibilityIdentifiers.statusIndicator)
-    }
-    
-    private var statusText: String {
-        switch viewModel.state {
-        case .idle: return String(localized: "Idle")
-        case .listening: return String(localized: "Listening")
-        case .processing: return String(localized: "Processing")
-        case .error: return String(localized: "Error")
-        }
     }
 }
 
@@ -253,79 +199,25 @@ struct ExpandedContentView: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 0) {
-                HStack(spacing: 8) {
-                    Text("Assistant")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(Color.blue)
-                        .clipShape(Capsule())
-                }
-                .padding(.leading, 16)
+                Text("Assistant")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.7))
+                    .padding(.leading, 16)
                 
                 Spacer()
                     .frame(width: notchWidth + 16)
                 
-                HStack(spacing: 12) {
-                    Button(action: { viewModel.onHidePanel?() }) {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(.white.opacity(0.7))
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(String(localized: "Close panel"))
+                NotchCloseButton(action: { viewModel.onHidePanel?() })
                     .accessibilityIdentifier(AccessibilityIdentifiers.closeButton)
-                }
-                .padding(.trailing, 16)
+                    .padding(.trailing, 12)
             }
             .frame(height: notchHeight)
-            
-            HStack(spacing: 12) {
-                HStack(spacing: 10) {
-                    StatusIndicatorView(state: viewModel.state)
-                    
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Meeting Assistant")
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(.white)
-                        
-                        Text(statusText)
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundStyle(.white.opacity(0.6))
-                    }
-                    
-                    Spacer()
-                }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 12)
-                .background(Color(white: 0.11))
-                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                
-                Button(action: { viewModel.onExpandToggle?() }) {
-                    VStack(spacing: 4) {
-                        Image(systemName: "chevron.up")
-                            .font(.system(size: 16, weight: .medium))
-                            .foregroundStyle(.white.opacity(0.7))
-                        Text("Collapse")
-                            .font(.system(size: 10, weight: .medium))
-                            .foregroundStyle(.white.opacity(0.6))
-                    }
-                }
-                .buttonStyle(.plain)
-                .frame(width: 70)
-                .padding(.vertical, 12)
-                .background(Color(white: 0.11))
-                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-            }
-            .padding(.horizontal, 16)
-            .padding(.top, 8)
             
             Rectangle()
                 .fill(Color.white.opacity(0.1))
                 .frame(height: 1)
                 .padding(.horizontal, 16)
-                .padding(.top, 12)
+                .padding(.top, 4)
             
             if case .error(let message) = viewModel.state {
                 ErrorBannerView(message: message, onRetry: {
@@ -392,15 +284,6 @@ struct ExpandedContentView: View {
         .onKeyPress(.tab) {
             advanceFocus()
             return .handled
-        }
-    }
-    
-    private var statusText: String {
-        switch viewModel.state {
-        case .idle: return String(localized: "Idle")
-        case .listening: return String(localized: "Listening")
-        case .processing: return String(localized: "Processing")
-        case .error: return String(localized: "Error")
         }
     }
     
@@ -756,7 +639,7 @@ struct VisualEffectView: NSViewRepresentable {
     let viewModel = NotchViewModel()
     viewModel.state = .listening
     return NotchOverlayView(viewModel: viewModel, notchWidth: 180, notchHeight: 32)
-        .frame(width: 750, height: 130)
+        .frame(width: 580, height: 55)
 }
 
 #Preview("Expanded") {
@@ -764,5 +647,5 @@ struct VisualEffectView: NSViewRepresentable {
     viewModel.loadMockData()
     viewModel.isExpanded = true
     return NotchOverlayView(viewModel: viewModel, notchWidth: 180, notchHeight: 32)
-        .frame(width: 750, height: 460)
+        .frame(width: 600, height: 460)
 }
