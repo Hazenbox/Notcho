@@ -17,11 +17,27 @@ final class NotchWindowController {
     private var panel: ClickablePanel!
     private let viewModel: NotchViewModel
     private var isExpanded = false
-    private let contourRadius: CGFloat = 14
+    private var clickOutsideMonitor: Any?
     
     var hasNotch: Bool {
         guard let screen = NSScreen.main else { return false }
         return screen.safeAreaInsets.top > 0
+    }
+    
+    var notchWidth: CGFloat {
+        guard let screen = NSScreen.main else { return 180 }
+        if #available(macOS 12.0, *) {
+            if let leftArea = screen.auxiliaryTopLeftArea,
+               let rightArea = screen.auxiliaryTopRightArea {
+                return screen.frame.width - leftArea.width - rightArea.width
+            }
+        }
+        return 180
+    }
+    
+    var notchHeight: CGFloat {
+        guard let screen = NSScreen.main else { return 32 }
+        return screen.safeAreaInsets.top > 0 ? screen.safeAreaInsets.top : 32
     }
     
     init(viewModel: NotchViewModel) {
@@ -29,7 +45,11 @@ final class NotchWindowController {
     }
     
     func setup() {
-        let contentView = NotchOverlayView(viewModel: viewModel)
+        let contentView = NotchOverlayView(
+            viewModel: viewModel,
+            notchWidth: notchWidth,
+            notchHeight: notchHeight
+        )
         let hostingView = NSHostingView(rootView: contentView)
         
         panel = ClickablePanel(
@@ -39,9 +59,9 @@ final class NotchWindowController {
             defer: false
         )
         
-        panel.level = .statusBar + 1
+        panel.level = .screenSaver
         panel.sharingType = .none
-        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
         panel.isOpaque = false
         panel.backgroundColor = .clear
         panel.hasShadow = true
@@ -58,6 +78,10 @@ final class NotchWindowController {
         viewModel.onExpandToggle = { [weak self] in
             self?.toggle()
         }
+        
+        viewModel.onHidePanel = { [weak self] in
+            self?.hide()
+        }
     }
     
     func show() {
@@ -65,7 +89,11 @@ final class NotchWindowController {
     }
     
     func hide() {
+        if isExpanded {
+            collapse()
+        }
         panel.orderOut(nil)
+        removeClickOutsideMonitor()
     }
     
     func toggle() {
@@ -86,6 +114,8 @@ final class NotchWindowController {
             context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
             panel.animator().setFrame(expandedFrame(), display: true)
         }
+        
+        setupClickOutsideMonitor()
     }
     
     func collapse() {
@@ -98,24 +128,43 @@ final class NotchWindowController {
             context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
             panel.animator().setFrame(collapsedFrame(), display: true)
         }
+        
+        removeClickOutsideMonitor()
+    }
+    
+    private func setupClickOutsideMonitor() {
+        removeClickOutsideMonitor()
+        
+        clickOutsideMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] event in
+            guard let self = self, self.isExpanded else { return }
+            
+            let mouseLocation = NSEvent.mouseLocation
+            let panelFrame = self.panel.frame
+            
+            if !panelFrame.contains(mouseLocation) {
+                Task { @MainActor in
+                    self.collapse()
+                }
+            }
+        }
+    }
+    
+    private func removeClickOutsideMonitor() {
+        if let monitor = clickOutsideMonitor {
+            NSEvent.removeMonitor(monitor)
+            clickOutsideMonitor = nil
+        }
     }
     
     private func collapsedFrame() -> NSRect {
         guard let screen = NSScreen.main else { return .zero }
         let screenFrame = screen.frame
         
-        let width: CGFloat = 700
-        let contentHeight: CGFloat = 140
-        let height = contentHeight + contourRadius
+        let width: CGFloat = 750
+        let height: CGFloat = 130
         
         let x = screenFrame.midX - width / 2
-        let y: CGFloat
-        
-        if hasNotch {
-            y = screenFrame.maxY - height
-        } else {
-            y = screenFrame.maxY - 40 - height
-        }
+        let y = screenFrame.maxY - height
         
         return NSRect(x: x, y: y, width: width, height: height)
     }
@@ -124,18 +173,11 @@ final class NotchWindowController {
         guard let screen = NSScreen.main else { return .zero }
         let screenFrame = screen.frame
         
-        let width: CGFloat = 700
-        let contentHeight: CGFloat = 460
-        let height = contentHeight + contourRadius
+        let width: CGFloat = 750
+        let height: CGFloat = 460
         
         let x = screenFrame.midX - width / 2
-        let y: CGFloat
-        
-        if hasNotch {
-            y = screenFrame.maxY - height
-        } else {
-            y = screenFrame.maxY - 40 - height
-        }
+        let y = screenFrame.maxY - height
         
         return NSRect(x: x, y: y, width: width, height: height)
     }

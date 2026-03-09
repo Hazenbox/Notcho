@@ -1,42 +1,105 @@
 import SwiftUI
 
+struct NotchCutoutShape: Shape {
+    let notchWidth: CGFloat
+    let notchHeight: CGFloat
+    let notchCornerRadius: CGFloat
+    let bottomCornerRadius: CGFloat
+    
+    init(notchWidth: CGFloat, notchHeight: CGFloat, notchCornerRadius: CGFloat = 8, bottomCornerRadius: CGFloat = 20) {
+        self.notchWidth = notchWidth
+        self.notchHeight = notchHeight
+        self.notchCornerRadius = notchCornerRadius
+        self.bottomCornerRadius = bottomCornerRadius
+    }
+    
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        let midX = rect.midX
+        let notchLeft = midX - notchWidth / 2
+        let notchRight = midX + notchWidth / 2
+        let ncr = notchCornerRadius
+        let bcr = bottomCornerRadius
+        
+        path.move(to: CGPoint(x: 0, y: 0))
+        
+        path.addLine(to: CGPoint(x: notchLeft - ncr, y: 0))
+        
+        path.addQuadCurve(
+            to: CGPoint(x: notchLeft, y: ncr),
+            control: CGPoint(x: notchLeft, y: 0)
+        )
+        
+        path.addLine(to: CGPoint(x: notchLeft, y: notchHeight - ncr))
+        
+        path.addQuadCurve(
+            to: CGPoint(x: notchLeft + ncr, y: notchHeight),
+            control: CGPoint(x: notchLeft, y: notchHeight)
+        )
+        
+        path.addLine(to: CGPoint(x: notchRight - ncr, y: notchHeight))
+        
+        path.addQuadCurve(
+            to: CGPoint(x: notchRight, y: notchHeight - ncr),
+            control: CGPoint(x: notchRight, y: notchHeight)
+        )
+        
+        path.addLine(to: CGPoint(x: notchRight, y: ncr))
+        
+        path.addQuadCurve(
+            to: CGPoint(x: notchRight + ncr, y: 0),
+            control: CGPoint(x: notchRight, y: 0)
+        )
+        
+        path.addLine(to: CGPoint(x: rect.maxX, y: 0))
+        
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY - bcr))
+        
+        path.addQuadCurve(
+            to: CGPoint(x: rect.maxX - bcr, y: rect.maxY),
+            control: CGPoint(x: rect.maxX, y: rect.maxY)
+        )
+        
+        path.addLine(to: CGPoint(x: bcr, y: rect.maxY))
+        
+        path.addQuadCurve(
+            to: CGPoint(x: 0, y: rect.maxY - bcr),
+            control: CGPoint(x: 0, y: rect.maxY)
+        )
+        
+        path.addLine(to: CGPoint(x: 0, y: 0))
+        
+        return path
+    }
+}
+
 struct NotchOverlayView: View {
     @Bindable var viewModel: NotchViewModel
+    let notchWidth: CGFloat
+    let notchHeight: CGFloat
     
-    private let contourRadius: CGFloat = 14
-    private let cornerRadius: CGFloat = 22
+    init(viewModel: NotchViewModel, notchWidth: CGFloat = 180, notchHeight: CGFloat = 32) {
+        self.viewModel = viewModel
+        self.notchWidth = notchWidth
+        self.notchHeight = notchHeight
+    }
     
     var body: some View {
-        ZStack(alignment: .top) {
-            ZStack {
-                Color.black
-                
-                if viewModel.showOnboarding {
-                    OnboardingView(viewModel: viewModel)
-                } else if viewModel.isLoadingModel {
-                    ModelLoadingView(progress: viewModel.modelDownloadProgress)
-                } else if viewModel.isExpanded {
-                    ExpandedContentView(viewModel: viewModel)
-                } else {
-                    CollapsedContentView(viewModel: viewModel)
-                }
-            }
-            .clipShape(NotchContourShape(cornerRadius: cornerRadius, contourRadius: contourRadius))
-            .padding(.top, contourRadius)
+        ZStack {
+            Color.black
             
-            HStack {
-                OutsideCornerShape(radius: contourRadius, corner: .topLeft)
-                    .fill(Color.black)
-                    .frame(width: contourRadius, height: contourRadius)
-                
-                Spacer()
-                
-                OutsideCornerShape(radius: contourRadius, corner: .topRight)
-                    .fill(Color.black)
-                    .frame(width: contourRadius, height: contourRadius)
+            if viewModel.showOnboarding {
+                OnboardingView(viewModel: viewModel)
+            } else if viewModel.isLoadingModel {
+                ModelLoadingView(progress: viewModel.modelDownloadProgress)
+            } else if viewModel.isExpanded {
+                ExpandedContentView(viewModel: viewModel, notchWidth: notchWidth, notchHeight: notchHeight)
+            } else {
+                CollapsedContentView(viewModel: viewModel, notchWidth: notchWidth, notchHeight: notchHeight)
             }
         }
-        .shadow(color: .black.opacity(0.4), radius: 15, x: 0, y: 8)
+        .clipShape(NotchCutoutShape(notchWidth: notchWidth, notchHeight: notchHeight))
+        .shadow(color: .black.opacity(0.5), radius: 20, x: 0, y: 10)
         .onAppear {
             viewModel.setup()
         }
@@ -76,64 +139,90 @@ struct ModelLoadingView: View {
 
 struct CollapsedContentView: View {
     @Bindable var viewModel: NotchViewModel
-    
-    private let notchWidth: CGFloat = 180
+    let notchWidth: CGFloat
+    let notchHeight: CGFloat
     
     var body: some View {
-        HStack(spacing: 0) {
-            // Left section - Status card
-            HStack(spacing: 10) {
-                StatusIndicatorView(state: viewModel.state)
-                
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Meeting Assistant")
-                        .font(.system(size: 13, weight: .semibold))
+        VStack(spacing: 0) {
+            HStack(spacing: 0) {
+                HStack(spacing: 8) {
+                    Text("Assistant")
+                        .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(.white)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(Color.blue)
+                        .clipShape(Capsule())
+                }
+                .padding(.leading, 16)
+                
+                Spacer()
+                    .frame(width: notchWidth + 16)
+                
+                HStack(spacing: 12) {
+                    Button(action: { viewModel.onHidePanel?() }) {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(.white.opacity(0.7))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(String(localized: "Close panel"))
+                }
+                .padding(.trailing, 16)
+            }
+            .frame(height: notchHeight)
+            
+            HStack(spacing: 12) {
+                HStack(spacing: 10) {
+                    StatusIndicatorView(state: viewModel.state)
                     
-                    Text(statusText)
-                        .font(.system(size: 11, weight: .medium))
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Meeting Assistant")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(.white)
+                        
+                        Text(statusText)
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(.white.opacity(0.6))
+                    }
+                    
+                    Spacer()
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 14)
+                .background(Color(white: 0.11))
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                
+                VStack(spacing: 4) {
+                    if viewModel.isRunning {
+                        Image(systemName: "waveform")
+                            .font(.system(size: 20))
+                            .foregroundStyle(.green)
+                    } else {
+                        Image(systemName: "mic.slash")
+                            .font(.system(size: 20))
+                            .foregroundStyle(.white.opacity(0.4))
+                    }
+                    Text(viewModel.isRunning ? "Active" : "Idle")
+                        .font(.system(size: 10, weight: .medium))
                         .foregroundStyle(.white.opacity(0.6))
                 }
-                
-                Spacer()
-            }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 12)
-            .frame(maxWidth: .infinity)
-            .background(Color(white: 0.11))
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-            .padding(.leading, 16)
-            
-            // Center spacer for notch area
-            Spacer()
-                .frame(width: notchWidth)
-            
-            // Right section - Settings/Action card
-            HStack(spacing: 12) {
-                Spacer()
-                
-                Button(action: { viewModel.onExpandToggle?() }) {
-                    Image(systemName: "waveform")
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundStyle(.white)
+                .frame(width: 70)
+                .padding(.vertical, 14)
+                .background(Color(white: 0.11))
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .onTapGesture {
+                    viewModel.onExpandToggle?()
                 }
-                .buttonStyle(.plain)
-                
-                Button(action: {}) {
-                    Image(systemName: "gearshape")
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.7))
-                }
-                .buttonStyle(.plain)
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 12)
-            .frame(maxWidth: .infinity)
-            .background(Color(white: 0.11))
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-            .padding(.trailing, 16)
+            .padding(.horizontal, 16)
+            .padding(.bottom, 16)
+            .padding(.top, 8)
         }
-        .padding(.vertical, 16)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            viewModel.onExpandToggle?()
+        }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(String(localized: "Notch Assistant"))
         .accessibilityValue(statusText)
@@ -154,8 +243,8 @@ struct CollapsedContentView: View {
 struct ExpandedContentView: View {
     @Bindable var viewModel: NotchViewModel
     @FocusState private var focusedElement: FocusableElement?
-    
-    private let notchWidth: CGFloat = 180
+    let notchWidth: CGFloat
+    let notchHeight: CGFloat
     
     enum FocusableElement: Hashable {
         case transcript, suggestion, question, insight, regenerate, copyAll, close
@@ -163,9 +252,36 @@ struct ExpandedContentView: View {
     
     var body: some View {
         VStack(spacing: 0) {
-            // Top row - same as collapsed layout
             HStack(spacing: 0) {
-                // Left section - Status card
+                HStack(spacing: 8) {
+                    Text("Assistant")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(Color.blue)
+                        .clipShape(Capsule())
+                }
+                .padding(.leading, 16)
+                
+                Spacer()
+                    .frame(width: notchWidth + 16)
+                
+                HStack(spacing: 12) {
+                    Button(action: { viewModel.onHidePanel?() }) {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(.white.opacity(0.7))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(String(localized: "Close panel"))
+                    .accessibilityIdentifier(AccessibilityIdentifiers.closeButton)
+                }
+                .padding(.trailing, 16)
+            }
+            .frame(height: notchHeight)
+            
+            HStack(spacing: 12) {
                 HStack(spacing: 10) {
                     StatusIndicatorView(state: viewModel.state)
                     
@@ -183,51 +299,34 @@ struct ExpandedContentView: View {
                 }
                 .padding(.horizontal, 14)
                 .padding(.vertical, 12)
-                .frame(maxWidth: .infinity)
                 .background(Color(white: 0.11))
                 .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                .padding(.leading, 16)
                 
-                // Center spacer for notch area
-                Spacer()
-                    .frame(width: notchWidth)
-                
-                // Right section - Settings/Close
-                HStack(spacing: 12) {
-                    Spacer()
-                    
-                    Button(action: {}) {
-                        Image(systemName: "gearshape")
+                Button(action: { viewModel.onExpandToggle?() }) {
+                    VStack(spacing: 4) {
+                        Image(systemName: "chevron.up")
                             .font(.system(size: 16, weight: .medium))
                             .foregroundStyle(.white.opacity(0.7))
+                        Text("Collapse")
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundStyle(.white.opacity(0.6))
                     }
-                    .buttonStyle(.plain)
-                    
-                    Button(action: { viewModel.onExpandToggle?() }) {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(.white.opacity(0.7))
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(String(localized: "Close"))
-                    .accessibilityIdentifier(AccessibilityIdentifiers.closeButton)
                 }
-                .padding(.horizontal, 14)
+                .buttonStyle(.plain)
+                .frame(width: 70)
                 .padding(.vertical, 12)
-                .frame(maxWidth: .infinity)
                 .background(Color(white: 0.11))
                 .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                .padding(.trailing, 16)
             }
-            .padding(.vertical, 16)
+            .padding(.horizontal, 16)
+            .padding(.top, 8)
             
-            // Divider
             Rectangle()
                 .fill(Color.white.opacity(0.1))
                 .frame(height: 1)
                 .padding(.horizontal, 16)
+                .padding(.top, 12)
             
-            // Error banner if needed
             if case .error(let message) = viewModel.state {
                 ErrorBannerView(message: message, onRetry: {
                     viewModel.clearError()
@@ -237,7 +336,6 @@ struct ExpandedContentView: View {
                 })
             }
             
-            // Content area
             ScrollView {
                 VStack(alignment: .leading, spacing: 12) {
                     if viewModel.currentTranscript.isEmpty {
@@ -280,13 +378,11 @@ struct ExpandedContentView: View {
                 .padding(16)
             }
             
-            // Divider
             Rectangle()
                 .fill(Color.white.opacity(0.1))
                 .frame(height: 1)
                 .padding(.horizontal, 16)
             
-            // Footer
             FooterView(viewModel: viewModel)
         }
         .onKeyPress(.escape) {
@@ -405,7 +501,6 @@ struct WaitingForSuggestionView: View {
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 }
-
 
 struct TranscriptSectionView: View {
     let transcript: String
@@ -657,92 +752,17 @@ struct VisualEffectView: NSViewRepresentable {
     }
 }
 
-struct NotchContourShape: Shape {
-    let cornerRadius: CGFloat
-    let contourRadius: CGFloat
-    
-    func path(in rect: CGRect) -> Path {
-        var path = Path()
-        
-        path.move(to: CGPoint(x: 0, y: contourRadius))
-        
-        path.addQuadCurve(
-            to: CGPoint(x: contourRadius, y: 0),
-            control: CGPoint(x: 0, y: 0)
-        )
-        
-        path.addLine(to: CGPoint(x: rect.width - contourRadius, y: 0))
-        
-        path.addQuadCurve(
-            to: CGPoint(x: rect.width, y: contourRadius),
-            control: CGPoint(x: rect.width, y: 0)
-        )
-        
-        path.addLine(to: CGPoint(x: rect.width, y: rect.height - cornerRadius))
-        
-        path.addQuadCurve(
-            to: CGPoint(x: rect.width - cornerRadius, y: rect.height),
-            control: CGPoint(x: rect.width, y: rect.height)
-        )
-        
-        path.addLine(to: CGPoint(x: cornerRadius, y: rect.height))
-        
-        path.addQuadCurve(
-            to: CGPoint(x: 0, y: rect.height - cornerRadius),
-            control: CGPoint(x: 0, y: rect.height)
-        )
-        
-        path.closeSubpath()
-        return path
-    }
-}
-
-struct OutsideCornerShape: Shape {
-    let radius: CGFloat
-    let corner: Corner
-    
-    enum Corner {
-        case topLeft, topRight
-    }
-    
-    func path(in rect: CGRect) -> Path {
-        var path = Path()
-        
-        switch corner {
-        case .topLeft:
-            path.move(to: CGPoint(x: 0, y: 0))
-            path.addLine(to: CGPoint(x: radius, y: 0))
-            path.addQuadCurve(
-                to: CGPoint(x: 0, y: radius),
-                control: CGPoint(x: 0, y: 0)
-            )
-            path.addLine(to: CGPoint(x: 0, y: 0))
-        case .topRight:
-            path.move(to: CGPoint(x: rect.width, y: 0))
-            path.addLine(to: CGPoint(x: rect.width - radius, y: 0))
-            path.addQuadCurve(
-                to: CGPoint(x: rect.width, y: radius),
-                control: CGPoint(x: rect.width, y: 0)
-            )
-            path.addLine(to: CGPoint(x: rect.width, y: 0))
-        }
-        
-        path.closeSubpath()
-        return path
-    }
-}
-
 #Preview("Collapsed") {
     let viewModel = NotchViewModel()
     viewModel.state = .listening
-    return NotchOverlayView(viewModel: viewModel)
-        .frame(width: 700, height: 154)
+    return NotchOverlayView(viewModel: viewModel, notchWidth: 180, notchHeight: 32)
+        .frame(width: 750, height: 130)
 }
 
 #Preview("Expanded") {
     let viewModel = NotchViewModel()
     viewModel.loadMockData()
     viewModel.isExpanded = true
-    return NotchOverlayView(viewModel: viewModel)
-        .frame(width: 700, height: 474)
+    return NotchOverlayView(viewModel: viewModel, notchWidth: 180, notchHeight: 32)
+        .frame(width: 750, height: 460)
 }

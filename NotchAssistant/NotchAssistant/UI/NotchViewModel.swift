@@ -10,6 +10,7 @@ final class NotchViewModel {
     var currentTopic: String = ""
     var suggestion: SuggestionResult?
     var onExpandToggle: (() -> Void)?
+    var onHidePanel: (() -> Void)?
     var isRunning = false
     var showOnboarding = false
     var isLoadingModel = false
