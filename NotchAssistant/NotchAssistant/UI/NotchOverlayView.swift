@@ -173,7 +173,11 @@ struct CollapsedContentView: View {
                 .padding(.leading, 16)
             
             Spacer()
+            
+            Spacer()
                 .frame(width: notchWidth + 16)
+            
+            Spacer()
             
             NotchCloseButton(action: { viewModel.onHidePanel?() })
                 .padding(.trailing, 12)
@@ -205,7 +209,11 @@ struct ExpandedContentView: View {
                     .padding(.leading, 16)
                 
                 Spacer()
+                
+                Spacer()
                     .frame(width: notchWidth + 16)
+                
+                Spacer()
                 
                 NotchCloseButton(action: { viewModel.onHidePanel?() })
                     .accessibilityIdentifier(AccessibilityIdentifiers.closeButton)
