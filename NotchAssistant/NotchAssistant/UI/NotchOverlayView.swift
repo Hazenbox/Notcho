@@ -4,24 +4,30 @@ struct NotchContentView: View {
     @Bindable var viewModel: NotchViewModel
     
     var body: some View {
-        VStack(spacing: 0) {
-            HeaderView(viewModel: viewModel)
-            
-            Divider()
-                .background(Color.white.opacity(0.1))
-            
-            if viewModel.showOnboarding {
-                OnboardingView(viewModel: viewModel)
-            } else if viewModel.isLoadingModel {
-                ModelLoadingView(progress: viewModel.modelDownloadProgress)
-            } else {
-                ContentScrollView(viewModel: viewModel)
+        ZStack(alignment: .top) {
+            VStack(spacing: 0) {
+                Spacer()
+                    .frame(height: 8)
                 
                 Divider()
                     .background(Color.white.opacity(0.1))
                 
-                NotchFooterView(viewModel: viewModel)
+                if viewModel.showOnboarding {
+                    OnboardingView(viewModel: viewModel)
+                } else if viewModel.isLoadingModel {
+                    ModelLoadingView(progress: viewModel.modelDownloadProgress)
+                } else {
+                    ContentScrollView(viewModel: viewModel)
+                    
+                    Divider()
+                        .background(Color.white.opacity(0.1))
+                    
+                    NotchFooterView(viewModel: viewModel)
+                }
             }
+            
+            NotchHeaderOverlay(viewModel: viewModel)
+                .offset(y: -32)
         }
         .frame(width: 420, height: 220)
         .background(Color.black)
@@ -31,14 +37,14 @@ struct NotchContentView: View {
     }
 }
 
-struct HeaderView: View {
+struct NotchHeaderOverlay: View {
     @Bindable var viewModel: NotchViewModel
     @State private var isHoveringClose = false
     
     var body: some View {
         HStack {
             Text("Assistant")
-                .font(.system(size: 13, weight: .semibold))
+                .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(.white.opacity(0.8))
             
             Spacer()
@@ -47,15 +53,14 @@ struct HeaderView: View {
                 Image(systemName: "xmark")
                     .font(.system(size: 9, weight: .bold))
                     .foregroundStyle(isHoveringClose ? .white : .white.opacity(0.5))
-                    .frame(width: 20, height: 20)
+                    .frame(width: 18, height: 18)
                     .background(isHoveringClose ? Color.white.opacity(0.15) : Color.clear)
                     .clipShape(Circle())
             }
             .buttonStyle(.plain)
             .onHover { isHoveringClose = $0 }
         }
-        .padding(.horizontal, 0)
-        .padding(.vertical, 8)
+        .frame(height: 32)
     }
 }
 
@@ -72,11 +77,8 @@ struct ContentScrollView: View {
                 }
                 
                 if let suggestion = viewModel.suggestion {
-                    RecommendationView(
-                        recommendation: suggestion.recommendation,
-                        onCopy: { viewModel.copyToClipboard(suggestion.recommendation) }
-                    )
-                    .accessibilityIdentifier(AccessibilityIdentifiers.suggestionCard)
+                    RecommendationView(recommendation: suggestion.recommendation)
+                        .accessibilityIdentifier(AccessibilityIdentifiers.suggestionCard)
                 } else if viewModel.isRunning && !viewModel.currentTranscript.isEmpty {
                     GeneratingView()
                 }
@@ -133,27 +135,12 @@ struct TranscriptView: View {
 
 struct RecommendationView: View {
     let recommendation: String
-    let onCopy: () -> Void
-    @State private var isHovering = false
     
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            HStack {
-                Text("RECOMMENDATION")
-                    .font(.system(size: 9, weight: .bold))
-                    .foregroundStyle(.white.opacity(0.4))
-                
-                Spacer()
-                
-                Button(action: onCopy) {
-                    Image(systemName: "doc.on.doc")
-                        .font(.system(size: 10))
-                        .foregroundStyle(isHovering ? .white : .white.opacity(0.4))
-                }
-                .buttonStyle(.plain)
-                .onHover { isHovering = $0 }
-                .accessibilityIdentifier(AccessibilityIdentifiers.copyButton)
-            }
+            Text("RECOMMENDATION")
+                .font(.system(size: 9, weight: .bold))
+                .foregroundStyle(.white.opacity(0.4))
             
             Text(recommendation)
                 .font(.system(size: 13, weight: .medium))
