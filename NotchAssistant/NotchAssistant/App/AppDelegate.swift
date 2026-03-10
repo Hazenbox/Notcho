@@ -61,7 +61,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
     
     @objc private func openSettings() {
-        NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+        NotificationCenter.default.post(name: .openSettingsRequest, object: nil)
     }
     
     @objc private func quitApp() {
