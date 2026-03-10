@@ -4,11 +4,9 @@ import Observation
 @Observable
 @MainActor
 final class NotchViewModel {
-    var isExpanded = false
     var state: PipelineState = .idle
     var currentTranscript: String = ""
     var suggestion: SuggestionResult?
-    var onExpandToggle: (() -> Void)?
     var onHidePanel: (() -> Void)?
     var isRunning = false
     var showOnboarding = false

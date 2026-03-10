@@ -23,7 +23,7 @@ struct NotchContentView: View {
                 NotchFooterView(viewModel: viewModel)
             }
         }
-        .frame(width: 360, height: 220)
+        .frame(width: 420, height: 220)
         .background(Color.black)
         .onAppear {
             viewModel.setup()
@@ -34,7 +34,6 @@ struct NotchContentView: View {
 struct HeaderView: View {
     @Bindable var viewModel: NotchViewModel
     @State private var isHoveringClose = false
-    @State private var isHoveringCollapse = false
     
     var body: some View {
         HStack {
@@ -44,32 +43,19 @@ struct HeaderView: View {
             
             Spacer()
             
-            HStack(spacing: 6) {
-                Button(action: { viewModel.onExpandToggle?() }) {
-                    Image(systemName: "chevron.up")
-                        .font(.system(size: 9, weight: .bold))
-                        .foregroundStyle(isHoveringCollapse ? .white : .white.opacity(0.5))
-                        .frame(width: 20, height: 20)
-                        .background(isHoveringCollapse ? Color.white.opacity(0.15) : Color.clear)
-                        .clipShape(Circle())
-                }
-                .buttonStyle(.plain)
-                .onHover { isHoveringCollapse = $0 }
-                
-                Button(action: { viewModel.onHidePanel?() }) {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 9, weight: .bold))
-                        .foregroundStyle(isHoveringClose ? .white : .white.opacity(0.5))
-                        .frame(width: 20, height: 20)
-                        .background(isHoveringClose ? Color.white.opacity(0.15) : Color.clear)
-                        .clipShape(Circle())
-                }
-                .buttonStyle(.plain)
-                .onHover { isHoveringClose = $0 }
+            Button(action: { viewModel.onHidePanel?() }) {
+                Image(systemName: "xmark")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(isHoveringClose ? .white : .white.opacity(0.5))
+                    .frame(width: 20, height: 20)
+                    .background(isHoveringClose ? Color.white.opacity(0.15) : Color.clear)
+                    .clipShape(Circle())
             }
+            .buttonStyle(.plain)
+            .onHover { isHoveringClose = $0 }
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
+        .padding(.horizontal, 0)
+        .padding(.vertical, 8)
     }
 }
 
@@ -102,7 +88,8 @@ struct ContentScrollView: View {
                     })
                 }
             }
-            .padding(12)
+            .padding(.horizontal, 0)
+            .padding(.vertical, 6)
         }
     }
 }
@@ -128,9 +115,6 @@ struct ListeningStatusView: View {
                     .foregroundStyle(.white.opacity(0.4))
             }
         }
-        .padding(10)
-        .background(Color(white: 0.1))
-        .clipShape(RoundedRectangle(cornerRadius: 8))
     }
 }
 
@@ -143,9 +127,6 @@ struct TranscriptView: View {
             .foregroundStyle(.white.opacity(0.7))
             .lineLimit(2)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(10)
-            .background(Color(white: 0.1))
-            .clipShape(RoundedRectangle(cornerRadius: 8))
             .accessibilityIdentifier(AccessibilityIdentifiers.transcriptView)
     }
 }
@@ -156,7 +137,7 @@ struct RecommendationView: View {
     @State private var isHovering = false
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 4) {
             HStack {
                 Text("RECOMMENDATION")
                     .font(.system(size: 9, weight: .bold))
@@ -179,9 +160,6 @@ struct RecommendationView: View {
                 .foregroundStyle(.white)
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .padding(12)
-        .background(Color(white: 0.1))
-        .clipShape(RoundedRectangle(cornerRadius: 8))
     }
 }
 
@@ -196,9 +174,6 @@ struct GeneratingView: View {
                 .foregroundStyle(.white.opacity(0.5))
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(10)
-        .background(Color(white: 0.1))
-        .clipShape(RoundedRectangle(cornerRadius: 8))
     }
 }
 
@@ -304,8 +279,8 @@ struct NotchFooterView: View {
             .foregroundStyle(.white.opacity(0.5))
             .accessibilityIdentifier(AccessibilityIdentifiers.copyAllButton)
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
+        .padding(.horizontal, 0)
+        .padding(.vertical, 6)
     }
 }
 

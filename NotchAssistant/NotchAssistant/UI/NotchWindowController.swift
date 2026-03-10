@@ -16,10 +16,6 @@ final class NotchWindowController {
             NotchContentView(viewModel: viewModel)
         }
         
-        viewModel.onExpandToggle = { [weak self] in
-            self?.toggle()
-        }
-        
         viewModel.onHidePanel = { [weak self] in
             self?.hide()
         }
@@ -27,19 +23,9 @@ final class NotchWindowController {
     
     func show() {
         dynamicNotch?.show()
-        viewModel.isExpanded = true
     }
     
     func hide() {
-        dynamicNotch?.hide()
-        viewModel.isExpanded = false
-    }
-    
-    func toggle() {
-        if viewModel.isExpanded {
-            hide()
-        } else {
-            show()
-        }
+        dynamicNotch?.hide(ignoreMouse: true)
     }
 }

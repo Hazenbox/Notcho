@@ -49,7 +49,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
     
     @objc private func statusBarClicked() {
-        notchWindowController?.toggle()
+        notchWindowController?.show()
     }
     
     @objc private func showAssistant() {
