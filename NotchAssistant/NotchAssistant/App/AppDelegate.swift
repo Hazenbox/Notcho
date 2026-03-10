@@ -1,5 +1,4 @@
 import AppKit
-import SwiftUI
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
@@ -7,17 +6,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var notchWindowController: NotchWindowController?
     private var viewModel: NotchViewModel?
     
+    private var systemAudioItem: NSMenuItem?
+    private var microphoneItem: NSMenuItem?
+    
     func applicationDidFinishLaunching(_ notification: Notification) {
-        // Check hardware requirements
         HardwareChecker.verifyOrExit()
-        
-        // Hide dock icon (menu bar app)
         NSApp.setActivationPolicy(.accessory)
-        
-        // Setup status bar item
         setupStatusBar()
-        
-        // Setup notch overlay
         setupNotchOverlay()
     }
     
@@ -26,19 +21,33 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         
         if let button = statusItem?.button {
             button.image = NSImage(systemSymbolName: "waveform.circle.fill", accessibilityDescription: "Notch Assistant")
-            button.action = #selector(statusBarClicked)
-            button.target = self
         }
         
         let menu = NSMenu()
+        
         menu.addItem(NSMenuItem(title: String(localized: "Show Assistant"), action: #selector(showAssistant), keyEquivalent: "m"))
-        menu.addItem(NSMenuItem(title: String(localized: "Hide Assistant"), action: #selector(hideAssistant), keyEquivalent: "h"))
         menu.addItem(NSMenuItem.separator())
-        menu.addItem(NSMenuItem(title: String(localized: "Settings..."), action: #selector(openSettings), keyEquivalent: ","))
+        
+        let audioMenu = NSMenu()
+        
+        systemAudioItem = NSMenuItem(title: String(localized: "System Audio"), action: #selector(selectSystemAudio), keyEquivalent: "")
+        systemAudioItem?.target = self
+        audioMenu.addItem(systemAudioItem!)
+        
+        microphoneItem = NSMenuItem(title: String(localized: "Microphone"), action: #selector(selectMicrophone), keyEquivalent: "")
+        microphoneItem?.target = self
+        audioMenu.addItem(microphoneItem!)
+        
+        let audioSourceItem = NSMenuItem(title: String(localized: "Audio Source"), action: nil, keyEquivalent: "")
+        audioSourceItem.submenu = audioMenu
+        menu.addItem(audioSourceItem)
+        
         menu.addItem(NSMenuItem.separator())
         menu.addItem(NSMenuItem(title: String(localized: "Quit"), action: #selector(quitApp), keyEquivalent: "q"))
         
         statusItem?.menu = menu
+        
+        updateAudioSourceMenu()
     }
     
     private func setupNotchOverlay() {
@@ -48,20 +57,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         notchWindowController?.show()
     }
     
-    @objc private func statusBarClicked() {
-        notchWindowController?.show()
+    private func updateAudioSourceMenu() {
+        let currentSource = UserDefaults.standard.string(forKey: "audioSource") ?? "system"
+        systemAudioItem?.state = currentSource == "system" ? .on : .off
+        microphoneItem?.state = currentSource == "microphone" ? .on : .off
+    }
+    
+    @objc private func selectSystemAudio() {
+        UserDefaults.standard.set("system", forKey: "audioSource")
+        updateAudioSourceMenu()
+    }
+    
+    @objc private func selectMicrophone() {
+        UserDefaults.standard.set("microphone", forKey: "audioSource")
+        updateAudioSourceMenu()
     }
     
     @objc private func showAssistant() {
         notchWindowController?.show()
-    }
-    
-    @objc private func hideAssistant() {
-        notchWindowController?.hide()
-    }
-    
-    @objc private func openSettings() {
-        NotificationCenter.default.post(name: .openSettingsRequest, object: nil)
     }
     
     @objc private func quitApp() {
