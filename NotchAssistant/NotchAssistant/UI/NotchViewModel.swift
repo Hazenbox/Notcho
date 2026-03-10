@@ -64,11 +64,11 @@ final class NotchViewModel {
     }
     
     func loadMockData() {
-        currentTranscript = "...so the rollout plan is to start with two pilot teams and measure adoption over the next four weeks. What do you all think about this approach?"
+        currentTranscript = "Can you walk me through your design process?"
         suggestion = SuggestionResult(
             id: UUID(),
             timestamp: Date(),
-            recommendation: "Start with the mobile team - they've shown the most interest and have bandwidth this sprint. Propose a 2-week pilot with clear success metrics before the next planning session.",
+            recommendation: "I follow a double-diamond approach: first diverge with research and synthesis to define the right problem, then converge on solutions through rapid prototyping and testing. For example, at my last role I reduced checkout abandonment 23% by spending the first week purely on user interviews before touching any designs.",
             contextSnapshot: currentTranscript
         )
         state = .listening
@@ -88,9 +88,9 @@ final class NotchViewModel {
         let client = AnthropicClient(apiKey: apiKey)
         
         let prompt = """
-        You are a staff-level product designer. Someone asked: "What is design thinking?"
+        You are an expert interview coach for product designers. The interviewer asked: "What is design thinking?"
 
-        Provide ONE direct recommendation (2-3 sentences). JSON only:
+        Provide a clear, expert-level answer (2-4 sentences). JSON only:
         {"recommendation": "Your answer here"}
         """
         

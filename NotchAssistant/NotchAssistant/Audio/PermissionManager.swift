@@ -54,7 +54,7 @@ actor PermissionManager {
     private func showMicrophoneSettingsAlert() {
         let alert = NSAlert()
         alert.messageText = String(localized: "Microphone Access Required")
-        alert.informativeText = String(localized: "Notch Assistant needs microphone access to listen to meeting audio. Please enable microphone access in System Settings > Privacy & Security > Microphone.")
+        alert.informativeText = String(localized: "Notch Assistant needs microphone access to listen to interview questions and provide real-time answers. Please enable microphone access in System Settings > Privacy & Security > Microphone.")
         alert.alertStyle = .warning
         alert.addButton(withTitle: String(localized: "Open Settings"))
         alert.addButton(withTitle: String(localized: "Cancel"))
@@ -116,7 +116,7 @@ actor PermissionManager {
     private func showScreenRecordingSettingsAlert() {
         let alert = NSAlert()
         alert.messageText = String(localized: "Screen Recording Access Required")
-        alert.informativeText = String(localized: "Notch Assistant needs Screen Recording access to capture meeting audio from Zoom, Meet, Teams and other apps. Please enable it in System Settings > Privacy & Security > Screen Recording.")
+        alert.informativeText = String(localized: "Notch Assistant needs Screen Recording access to capture audio from video interview apps like Zoom, Meet, and Teams. Please enable it in System Settings > Privacy & Security > Screen Recording.")
         alert.alertStyle = .warning
         alert.addButton(withTitle: String(localized: "Open Settings"))
         alert.addButton(withTitle: String(localized: "Cancel"))

@@ -17,9 +17,9 @@
     <key>LSUIElement</key>
     <true/>
     <key>NSMicrophoneUsageDescription</key>
-    <string>Notch Assistant needs microphone access to listen to meeting audio and provide real-time suggestions.</string>
+    <string>Notch Assistant needs microphone access to listen to interview questions and provide real-time answers.</string>
     <key>NSScreenCaptureUsageDescription</key>
-    <string>Notch Assistant needs Screen Recording access to capture meeting audio from Zoom, Meet, Teams and other apps.</string>
+    <string>Notch Assistant needs Screen Recording access to capture audio from video interview apps like Zoom, Meet, and Teams.</string>
     <key>NSHighResolutionCapable</key>
     <true/>
 </dict>

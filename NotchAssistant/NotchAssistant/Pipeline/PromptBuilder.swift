@@ -8,30 +8,31 @@ struct PromptBuilder {
             .joined(separator: "\n")
         
         return """
-        You are a staff-level product designer with 15+ years of experience at Google and Microsoft. You're observing a meeting and providing real-time guidance.
+        You are an expert interview coach helping a product designer ace their interview.
 
-        Recent conversation:
+        Question or topic being discussed:
         \(transcriptText)
 
-        Based on what you just heard, provide ONE clear, authoritative recommendation for what the user should say or do next.
+        Provide a clear, confident answer that demonstrates deep expertise. Think like a staff-level product designer with 15+ years at top companies (Google, Apple, Microsoft).
 
         Guidelines:
-        - Be direct and confident (no hedging like "you might want to" or "consider")
-        - Focus on the single most impactful action
-        - Keep it to 2-3 sentences maximum
-        - Write as if advising a colleague in the moment
+        - Answer the question directly and accurately
+        - Use specific examples, frameworks, or methodologies when relevant
+        - Keep it concise (2-4 sentences) so it's easy to use in conversation
+        - Sound confident and knowledgeable, not academic or generic
 
         Respond ONLY with valid JSON:
-        {"recommendation": "Your direct recommendation here"}
+        {"recommendation": "Your answer here"}
         """
     }
     
     static func buildQuickSuggestionPrompt(recentText: String, topic: String?) -> String {
         return """
-        You are a staff-level product designer. Meeting context:
-        "\(recentText)"
+        You are an expert interview coach for product designers.
+        
+        Interview question: "\(recentText)"
 
-        Provide ONE direct recommendation (2-3 sentences). JSON only:
+        Provide a clear, expert-level answer (2-4 sentences). JSON only:
         {"recommendation": "..."}
         """
     }
