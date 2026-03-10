@@ -23,6 +23,10 @@ final class NotchWindowController {
     
     func show() {
         dynamicNotch?.show()
+        
+        if let panel = dynamicNotch?.windowController?.window as? NSPanel {
+            panel.sharingType = .none
+        }
     }
     
     func hide() {
