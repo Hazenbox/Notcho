@@ -37,7 +37,10 @@ actor SuggestionGenerator: SuggestionGenerating {
         
         let prompt = PromptBuilder.buildSuggestionPrompt(context: context)
         
-        let response = try await anthropicClient!.sendMessage(prompt: prompt)
+        guard let client = anthropicClient else {
+            throw PipelineError.apiKeyMissing
+        }
+        let response = try await client.sendMessage(prompt: prompt)
         
         guard let parsed = JSONResponseParser.parse(response) else {
             Self.logger.warning("Failed to parse response, using raw text")

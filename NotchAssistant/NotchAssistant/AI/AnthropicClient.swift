@@ -9,7 +9,6 @@ actor AnthropicClient {
     
     private let service: AnthropicService
     private let model: String
-    private var retryCount = 0
     private let maxRetries = 3
     
     init(apiKey: String, model: String = "claude-3-haiku-20240307") {
@@ -29,7 +28,7 @@ actor AnthropicClient {
         )
         
         let parameters = MessageParameter(
-            model: .other("claude-3-haiku-20240307"),
+            model: .other(self.model),
             messages: [message],
             maxTokens: maxTokens
         )
@@ -105,7 +104,7 @@ actor AnthropicClient {
                     )
                     
                     let parameters = MessageParameter(
-                        model: .other("claude-3-haiku-20240307"),
+                        model: .other(self.model),
                         messages: [message],
                         maxTokens: maxTokens
                     )

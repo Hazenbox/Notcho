@@ -62,15 +62,12 @@ struct DataModelTests {
         let result = SuggestionResult(
             id: UUID(),
             timestamp: Date(),
-            suggestion: "Try this approach",
-            question: "What about X?",
-            insight: "The meeting is going well",
+            recommendation: "Try this approach",
             contextSnapshot: "Some context"
         )
         
-        #expect(result.suggestion == "Try this approach")
-        #expect(result.question == "What about X?")
-        #expect(result.insight == "The meeting is going well")
+        #expect(result.recommendation == "Try this approach")
+        #expect(result.contextSnapshot == "Some context")
     }
     
     @Test("PipelineError descriptions")
@@ -117,7 +114,7 @@ struct AudioBufferAccumulatorTests {
             emittedChunks.append(data)
         }
         
-        let chunkSize = Int(0.1 * 16000.0) * 2
+        let chunkSize = Int(0.1 * 16000.0) * MemoryLayout<Float>.size
         let testData = Data(repeating: 0, count: chunkSize * 3)
         
         accumulator.append(testData)

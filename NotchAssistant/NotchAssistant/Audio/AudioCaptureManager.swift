@@ -4,11 +4,6 @@ import os.log
 actor AudioCaptureManager: AudioCapturing {
     private static let logger = Logger(subsystem: "com.notchassistant.app", category: "AudioCaptureManager")
     
-    enum AudioSource: String, Sendable {
-        case system
-        case microphone
-    }
-    
     private let microphoneCapture: MicrophoneCapture
     private let systemCapture: SystemAudioCapture
     private let permissionManager: PermissionManager

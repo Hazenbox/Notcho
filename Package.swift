@@ -14,12 +14,6 @@ let package = Package(
         // Speech-to-Text - WhisperKit
         .package(url: "https://github.com/argmaxinc/WhisperKit", from: "0.9.0"),
         
-        // Crash Reporting - Sentry
-        .package(url: "https://github.com/getsentry/sentry-cocoa", from: "8.0.0"),
-        
-        // Analytics - TelemetryDeck
-        .package(url: "https://github.com/TelemetryDeck/SwiftClient", from: "2.0.0"),
-        
         // Notch UI - DynamicNotchKit
         .package(url: "https://github.com/MrKai77/DynamicNotchKit", from: "0.1.0"),
     ],
@@ -29,8 +23,6 @@ let package = Package(
             dependencies: [
                 .product(name: "SwiftAnthropic", package: "SwiftAnthropic"),
                 .product(name: "WhisperKit", package: "WhisperKit"),
-                .product(name: "Sentry", package: "sentry-cocoa"),
-                .product(name: "TelemetryDeck", package: "SwiftClient"),
                 .product(name: "DynamicNotchKit", package: "DynamicNotchKit"),
             ],
             path: "NotchAssistant/NotchAssistant",

@@ -5,10 +5,8 @@ struct NotchAssistantApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     
     var body: some Scene {
-        WindowGroup {
+        Settings {
             EmptyView()
         }
-        .windowResizability(.contentSize)
-        .defaultSize(width: 0, height: 0)
     }
 }

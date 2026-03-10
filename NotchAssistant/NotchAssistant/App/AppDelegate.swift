@@ -32,11 +32,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         
         systemAudioItem = NSMenuItem(title: String(localized: "System Audio"), action: #selector(selectSystemAudio), keyEquivalent: "")
         systemAudioItem?.target = self
-        audioMenu.addItem(systemAudioItem!)
+        if let item = systemAudioItem {
+            audioMenu.addItem(item)
+        }
         
         microphoneItem = NSMenuItem(title: String(localized: "Microphone"), action: #selector(selectMicrophone), keyEquivalent: "")
         microphoneItem?.target = self
-        audioMenu.addItem(microphoneItem!)
+        if let item = microphoneItem {
+            audioMenu.addItem(item)
+        }
         
         let audioSourceItem = NSMenuItem(title: String(localized: "Audio Source"), action: nil, keyEquivalent: "")
         audioSourceItem.submenu = audioMenu
@@ -52,7 +56,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     
     private func setupNotchOverlay() {
         viewModel = NotchViewModel()
-        notchWindowController = NotchWindowController(viewModel: viewModel!)
+        guard let vm = viewModel else { return }
+        notchWindowController = NotchWindowController(viewModel: vm)
         notchWindowController?.setup()
         notchWindowController?.show()
     }

@@ -8,7 +8,7 @@ final class DependencyContainer {
     
     func makeAudioCapture() -> any AudioCapturing {
         let sourceString = UserDefaults.standard.string(forKey: "audioSource") ?? "system"
-        let source: AudioCaptureManager.AudioSource = sourceString == "microphone" ? .microphone : .system
+        let source: AudioSource = AudioSource(rawValue: sourceString) ?? .system
         let manager = AudioCaptureManager()
         Task {
             await manager.setAudioSource(source)

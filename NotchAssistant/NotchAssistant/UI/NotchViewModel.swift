@@ -14,8 +14,12 @@ final class NotchViewModel {
     var modelDownloadProgress: Double = 0
     
     private var pipeline: PipelineCoordinator?
+    private var isSetup = false
     
     func setup() {
+        guard !isSetup else { return }
+        isSetup = true
+        
         pipeline = DependencyContainer.shared.makePipelineCoordinator()
         
         Task {

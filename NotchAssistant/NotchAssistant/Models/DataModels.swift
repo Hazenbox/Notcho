@@ -25,10 +25,9 @@ struct AudioChunk: Sendable {
     let source: AudioSource
 }
 
-enum AudioSource: Sendable {
+enum AudioSource: String, Sendable {
     case microphone
     case system
-    case combined
 }
 
 struct TranscriptChunk: Sendable {
