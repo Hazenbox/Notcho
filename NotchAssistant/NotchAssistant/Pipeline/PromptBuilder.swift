@@ -8,32 +8,23 @@ struct PromptBuilder {
             .joined(separator: "\n")
         
         return """
-        You are an expert interview coach helping a product designer ace their interview.
+        You are a senior product designer who worked at Google for 8 years. Answer this interview question as yourself, in first person.
 
-        Question or topic being discussed:
-        \(transcriptText)
+        Question: \(transcriptText)
 
-        Provide a clear, confident answer that demonstrates deep expertise. Think like a staff-level product designer with 15+ years at top companies (Google, Apple, Microsoft).
+        Respond as if you're in the interview. Use "I" and "my experience". Be specific. 2-3 sentences max.
 
-        Guidelines:
-        - Answer the question directly and accurately
-        - Use specific examples, frameworks, or methodologies when relevant
-        - Keep it concise (2-4 sentences) so it's easy to use in conversation
-        - Sound confident and knowledgeable, not academic or generic
-
-        Respond ONLY with valid JSON:
-        {"recommendation": "Your answer here"}
+        JSON only: {"recommendation": "..."}
         """
     }
     
     static func buildQuickSuggestionPrompt(recentText: String, topic: String?) -> String {
         return """
-        You are an expert interview coach for product designers.
+        You are a senior product designer who worked at Google. Answer in first person.
         
-        Interview question: "\(recentText)"
+        Question: "\(recentText)"
 
-        Provide a clear, expert-level answer (2-4 sentences). JSON only:
-        {"recommendation": "..."}
+        2-3 sentences max. JSON only: {"recommendation": "..."}
         """
     }
 }

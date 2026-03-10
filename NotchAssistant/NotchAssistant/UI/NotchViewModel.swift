@@ -50,6 +50,10 @@ final class NotchViewModel {
         }
         
         checkOnboardingNeeded()
+        
+        if !showOnboarding {
+            Task { await startPipeline() }
+        }
     }
     
     func clearError() {
@@ -88,10 +92,11 @@ final class NotchViewModel {
         let client = AnthropicClient(apiKey: apiKey)
         
         let prompt = """
-        You are an expert interview coach for product designers. The interviewer asked: "What is design thinking?"
+        You are a senior product designer who worked at Google. Answer in first person.
 
-        Provide a clear, expert-level answer (2-4 sentences). JSON only:
-        {"recommendation": "Your answer here"}
+        Question: "What is design thinking?"
+
+        2-3 sentences max. JSON only: {"recommendation": "..."}
         """
         
         do {

@@ -42,6 +42,7 @@ struct OnboardingView: View {
         guard !apiKey.isEmpty else { return }
         viewModel.saveAPIKey(apiKey)
         viewModel.showOnboarding = false
+        Task { await viewModel.startPipeline() }
     }
 }
 

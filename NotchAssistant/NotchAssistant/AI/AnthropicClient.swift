@@ -19,7 +19,7 @@ actor AnthropicClient {
         self.model = model
     }
     
-    func sendMessage(prompt: String, maxTokens: Int = 1024) async throws -> String {
+    func sendMessage(prompt: String, maxTokens: Int = 256) async throws -> String {
         Self.logger.info("Sending message to Claude (\(self.model))")
         
         let message = MessageParameter.Message(

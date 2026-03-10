@@ -138,12 +138,12 @@ struct RecommendationView: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text("RECOMMENDATION")
+            Text("ANSWER")
                 .font(.system(size: 9, weight: .bold))
                 .foregroundStyle(.white.opacity(0.4))
             
             Text(recommendation)
-                .font(.system(size: 13, weight: .medium))
+                .font(.system(size: 13, weight: .regular))
                 .foregroundStyle(.white)
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -208,18 +208,18 @@ struct NotchFooterView: View {
                 Task { await viewModel.togglePipeline() }
             }) {
                 HStack(spacing: 4) {
-                    Image(systemName: viewModel.isRunning ? "stop.fill" : "play.fill")
+                    Image(systemName: viewModel.isRunning ? "pause.fill" : "play.fill")
                         .font(.system(size: 9))
-                    Text(viewModel.isRunning ? "Stop" : "Start")
+                    Text(viewModel.isRunning ? "Pause" : "Resume")
                         .font(.system(size: 11, weight: .medium))
                 }
                 .padding(.horizontal, 10)
                 .padding(.vertical, 6)
-                .background(viewModel.isRunning ? Color.red.opacity(0.2) : Color.green.opacity(0.2))
+                .background(viewModel.isRunning ? Color.orange.opacity(0.2) : Color.green.opacity(0.2))
                 .clipShape(RoundedRectangle(cornerRadius: 6))
             }
             .buttonStyle(.plain)
-            .foregroundStyle(viewModel.isRunning ? .red : .green)
+            .foregroundStyle(viewModel.isRunning ? .orange : .green)
             .accessibilityIdentifier(viewModel.isRunning ? AccessibilityIdentifiers.stopButton : AccessibilityIdentifiers.startButton)
             
             Spacer()
