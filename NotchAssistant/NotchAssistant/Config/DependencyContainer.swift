@@ -7,7 +7,13 @@ final class DependencyContainer {
     private init() {}
     
     func makeAudioCapture() -> any AudioCapturing {
-        return AudioCaptureManager()
+        let sourceString = UserDefaults.standard.string(forKey: "audioSource") ?? "system"
+        let source: AudioCaptureManager.AudioSource = sourceString == "microphone" ? .microphone : .system
+        let manager = AudioCaptureManager()
+        Task {
+            await manager.setAudioSource(source)
+        }
+        return manager
     }
     
     func makeTranscriber() -> any Transcribing {

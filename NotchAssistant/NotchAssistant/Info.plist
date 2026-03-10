@@ -18,6 +18,8 @@
     <true/>
     <key>NSMicrophoneUsageDescription</key>
     <string>Notch Assistant needs microphone access to listen to meeting audio and provide real-time suggestions.</string>
+    <key>NSScreenCaptureUsageDescription</key>
+    <string>Notch Assistant needs Screen Recording access to capture meeting audio from Zoom, Meet, Teams and other apps.</string>
     <key>NSHighResolutionCapable</key>
     <true/>
 </dict>

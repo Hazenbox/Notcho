@@ -4,12 +4,18 @@ struct SettingsView: View {
     @AppStorage("launchAtLogin") private var launchAtLogin: Bool = false
     @AppStorage("analyticsEnabled") private var analyticsEnabled: Bool = true
     @AppStorage("selectedModel") private var selectedModel: String = "claude-3-haiku-20240307"
+    @AppStorage("audioSource") private var audioSource: String = "system"
     
     var body: some View {
         TabView {
             GeneralSettingsView(launchAtLogin: $launchAtLogin)
                 .tabItem {
                     Label(String(localized: "General"), systemImage: "gear")
+                }
+            
+            AudioSettingsView(audioSource: $audioSource)
+                .tabItem {
+                    Label(String(localized: "Audio"), systemImage: "waveform")
                 }
             
             APISettingsView(selectedModel: $selectedModel)
@@ -22,7 +28,7 @@ struct SettingsView: View {
                     Label(String(localized: "Privacy"), systemImage: "hand.raised")
                 }
         }
-        .frame(width: 480, height: 320)
+        .frame(width: 480, height: 360)
     }
 }
 
@@ -134,6 +140,34 @@ struct APISettingsView: View {
         }
         let success = KeychainManager.save(key, for: .anthropicAPIKey)
         hasKey = success
+    }
+}
+
+struct AudioSettingsView: View {
+    @Binding var audioSource: String
+    
+    var body: some View {
+        Form {
+            Section {
+                Picker(String(localized: "Audio Source"), selection: $audioSource) {
+                    Text("System Audio (Meeting apps)").tag("system")
+                    Text("Microphone").tag("microphone")
+                }
+                .pickerStyle(.radioGroup)
+            } header: {
+                Text("Capture Source")
+            } footer: {
+                if audioSource == "system" {
+                    Text("Captures audio from Zoom, Meet, Teams and other apps. Requires Screen Recording permission. Note: App restart required after first permission grant.")
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text("Captures audio from your microphone. Useful when meeting audio plays through speakers.")
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+        .formStyle(.grouped)
+        .padding()
     }
 }
 
